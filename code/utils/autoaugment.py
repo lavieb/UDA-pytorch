@@ -2,8 +2,10 @@
 
 from abc import abstractstaticmethod
 from PIL import Image, ImageEnhance, ImageOps
+from albumentations import BasicTransform
 import numpy as np
 import random
+import torch
 
 
 class AbstractPolicy(object):
@@ -34,6 +36,46 @@ class AbstractPolicy(object):
     def __call__(self, img):
         policy_idx = random.randint(0, len(self.policies) - 1)
         return self.policies[policy_idx](img)
+
+    def __repr__(self):
+        return "AutoAugment {}".format(self.__class__.__name__)
+
+
+class AbstractBackwardPolicy(BasicTransform):
+    """ Randomly choose one of the best Sub-policies on a specific dataset for a couple image and mask.
+    """
+    def __init__(self, fillcolor=(128, 128, 128)):
+        super(BasicTransform, self).__init__()
+        self.policies = self._get_policies(fillcolor)
+        self.backward_policies = []
+
+    @abstractstaticmethod
+    def _get_policies(fillcolor):
+        """Get the list of the best subpolicies computed with AutoAugment method for the specified dataset
+
+        Return:
+            List of the best subpolicies for the specified dataset"""
+
+        raise NotImplementedError
+
+    def apply(self, img, **params):
+        policy_idx = random.randint(0, len(self.policies) - 1)
+        policy = self.policies[policy_idx]
+
+        img = policy(img)
+        self.backward_policies = policy.applied_backward + self.policies
+
+        return img
+
+    def apply_to_mask(self, mask, **params):
+        return mask
+
+    def apply_backward(self, mask, **params):
+        for op in self.backward_policies:
+            if op is not None:
+                mask = op(mask)
+
+        return mask
 
     def __repr__(self):
         return "AutoAugment {}".format(self.__class__.__name__)
@@ -83,7 +125,7 @@ class CIFAR10Policy(AbstractPolicy):
         return policies
 
 
-class ImageNetPolicy(object):
+class ImageNetPolicy(AbstractPolicy):
     """ Randomly choose one of the best 20 Sub-policies on ImageNet."""
 
     def __init__(self, **kwargs):
@@ -112,6 +154,45 @@ class ImageNetPolicy(object):
             SubPolicy(0.6, "color", 4, 1.0, "contrast", 8, fillcolor),
 
             SubPolicy(0.8, "rotate", 8, 1.0, "color", 2, fillcolor),
+            SubPolicy(0.8, "color", 8, 0.8, "solarize", 7, fillcolor),
+            SubPolicy(0.4, "sharpness", 7, 0.6, "invert", 8, fillcolor),
+            SubPolicy(0.6, "shearX", 5, 1.0, "equalize", 9, fillcolor),
+            SubPolicy(0.4, "color", 0, 0.6, "equalize", 3, fillcolor),
+
+        ]
+
+        return policies
+
+
+class ImageNetBackwardPolicy(AbstractBackwardPolicy):
+    """ Randomly choose one of the best 20 Sub-policies on ImageNet."""
+
+    def __init__(self, **kwargs):
+        super(ImageNetBackwardPolicy, self).__init__(**kwargs)
+
+    @staticmethod
+    def _get_policies(fillcolor):
+
+        policies = [
+            SubPolicy(0.4, "posterize", 8, 0.6, "rotate90", 9, fillcolor),
+            SubPolicy(0.6, "solarize", 5, 0.6, "autocontrast", 5, fillcolor),
+            SubPolicy(0.8, "equalize", 8, 0.6, "equalize", 3, fillcolor),
+            SubPolicy(0.6, "posterize", 7, 0.6, "posterize", 6, fillcolor),
+            SubPolicy(0.4, "equalize", 7, 0.2, "solarize", 4, fillcolor),
+
+            SubPolicy(0.4, "equalize", 4, 0.8, "rotate90", 8, fillcolor),
+            SubPolicy(0.6, "solarize", 3, 0.6, "equalize", 7, fillcolor),
+            SubPolicy(0.8, "posterize", 5, 1.0, "equalize", 2, fillcolor),
+            SubPolicy(0.2, "rotate90", 3, 0.6, "solarize", 8, fillcolor),
+            SubPolicy(0.6, "equalize", 8, 0.4, "posterize", 6, fillcolor),
+
+            SubPolicy(0.8, "rotate90", 8, 0.4, "color", 0, fillcolor),
+            SubPolicy(0.4, "rotate90", 9, 0.6, "equalize", 2, fillcolor),
+            SubPolicy(0.0, "equalize", 7, 0.8, "equalize", 8, fillcolor),
+            SubPolicy(0.6, "invert", 4, 1.0, "equalize", 8, fillcolor),
+            SubPolicy(0.6, "color", 4, 1.0, "contrast", 8, fillcolor),
+
+            SubPolicy(0.8, "rotate90", 8, 1.0, "color", 2, fillcolor),
             SubPolicy(0.8, "color", 8, 0.8, "solarize", 7, fillcolor),
             SubPolicy(0.4, "sharpness", 7, 0.6, "invert", 8, fillcolor),
             SubPolicy(0.6, "shearX", 5, 1.0, "equalize", 9, fillcolor),
@@ -188,7 +269,7 @@ class SubPolicy(object):
         return img
 
 
-class SubPolicyBackward(object):
+class SubBackwardPolicy(object):
     """Subpolicy with a backward relationship to revert the action (useful for segmentation)"""
 
     def __init__(self, p1, operation1, magnitude_idx1, p2, operation2, magnitude_idx2):
@@ -209,8 +290,8 @@ class SubPolicyBackward(object):
             return np.rot90(img, k=magnitude, axes=axes)
 
         func = {
-            "rotate": [lambda img, magnitude: rotate90(img, magnitude, (0, 1)),
-                       lambda img, magnitude: rotate90(img, magnitude, (1, 0))],
+            "rotate90": [lambda img, magnitude: np.rot90(img, k=magnitude, axes=(0, 1)),
+                         lambda mask, magnitude: torch.rot90(mask, k=magnitude, dims=(2, 1))],
             # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
             "color": [lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])), None],
             "posterize": [lambda img, magnitude: ImageOps.posterize(img, magnitude), None],
@@ -237,19 +318,11 @@ class SubPolicyBackward(object):
 
         self.applied_backward = []
 
-    def apply_backward_mask(self, mask):
-        """Apply the backward operations associated to the operations applied during the forward pass on the mask"""
-        for op in reversed(self.applied_backward):
-            if op is not None:
-                mask = op(mask)
-
-        return mask
-
     def __call__(self, img):
         if random.random() < self.p1:
             img = self.operation1(img, self.magnitude1)
-            self.applied_backward.append(self.backward_operation1)
+            self.applied_backward.insert(0, self.backward_operation1)
         if random.random() < self.p2:
             img = self.operation2(img, self.magnitude2)
-            self.applied_backward.append(self.backward_operation2)
+            self.applied_backward.insert(0, self.backward_operation2)
         return img

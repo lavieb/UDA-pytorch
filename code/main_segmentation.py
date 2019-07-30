@@ -53,32 +53,29 @@ def run(train_config, logger, **kwargs):
     except PolyaxonClientException as e:
         logger.warning('Logger Polyaxon : ' + str(e))
 
-
     # Path configuration
-    save_dir = train_config['save_dir'] if save_dir is None else save_dir
-    log_dir = os.path.join(save_dir, train_config['log_dir'])
-    save_model_dir = os.path.join(save_dir, train_config['model_dir'])
-    save_prediction_dir = os.path.join(save_dir, train_config['prediction_dir'])
-    save_config_dir = os.path.join(save_dir, train_config['config_dir'])
+    saves_dict = train_config.get('saves', {})
 
-    batch_size = train_config['batch_size']
+    save_dir = saves_dict.get('save_dir', '') if save_dir is None else save_dir
+    log_dir = os.path.join(save_dir, saves_dict.get('log_dir', ''))
+    save_model_dir = os.path.join(save_dir, saves_dict.get('model_dir', ''))
+    save_prediction_dir = os.path.join(save_dir, saves_dict.get('prediction_dir', ''))
+    save_config_dir = os.path.join(save_dir, saves_dict.get('config_dir', ''))
+
+    num_epochs = train_config['num_epochs']
     device = train_config.get('device', 'cpu')
 
-    train1_sup_loader, train1_unsup_loader, train2_unsup_loader, test_loader = \
-        get_uda_train_test_loaders(train_set=train_config['train_set'],
-                                   test_set=train_config['test_set'],
-                                   train_transform_fn=train_config['train_transform_fn'],
-                                   test_transform_fn=train_config['test_transform_fn'],
-                                   unsup_transform_fn=train_config['unsup_transform_fn'],
-                                   num_classes=train_config['num_classes'],
-                                   num_labelled_samples=train_config['num_labelled_samples'],
-                                   batch_size=batch_size,
-                                   train_workers=train_config['train_workers'],
-                                   test_workers=train_config['test_workers'],
-                                   unlabelled_batch_size=train_config.get('unlabelled_batch_size', None),
-                                   pin_memory=train_config.get('pin_memory', True))
+    # Set magical acceleration
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+    else:
+        assert device == 'cpu', 'CUDA device selected but none is available'
 
-    saves_dict = train_config.get('saves', {})
+    train1_sup_loader = train_config['train1_sup_loader']
+    train1_unsup_loader = train_config['train1_unsup_loader']
+    train2_unsup_loader = train_config['train2_unsup_loader']
+    test_loader = train_config['test_loader']
+
     save_interval = saves_dict.get('save_interval', 0)
     n_saved = saves_dict.get('n_saved', 0)
 
@@ -92,7 +89,7 @@ def run(train_config, logger, **kwargs):
     consistency_criterion = train_config['consistency_criterion'].to(device)
 
     le = len(train1_sup_loader)
-    num_train_steps = le * train_config['num_epochs']
+    num_train_steps = le * num_epochs
     mlflow.log_param("num train steps", num_train_steps)
 
     lr = train_config['learning_rate']
@@ -116,7 +113,7 @@ def run(train_config, logger, **kwargs):
                                   min_threshold=train_config['TSA_proba_min'],
                                   max_threshold=train_config['TSA_proba_max'])
 
-    with_tsa = train_config['with_TSA']
+    with_tsa = train_config.get('with_TSA', False)
 
     cfg = {'tsa': tsa,
            'lambda': lam,
@@ -232,4 +229,4 @@ def run(train_config, logger, **kwargs):
     evaluator.add_event_handler(Events.COMPLETED, mlflow_val_metrics_logging, "test", trainer, metrics)
 
     data_steps = list(range(len(train1_sup_loader)))
-    trainer.run(data_steps, max_epochs=train_config['num_epochs'])
+    trainer.run(data_steps, max_epochs=num_epochs)

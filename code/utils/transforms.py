@@ -6,6 +6,7 @@ import math
 
 import torch
 
+from albumentations import BasicTransform
 
 
 def erase(img, i, j, h, w, v, inplace=False):
@@ -115,3 +116,24 @@ class RandomErasing(object):
             x, y, h, w, v = self.get_params(img, scale=self.scale, ratio=self.ratio, value=self.value)
             return erase(img, x, y, h, w, v, self.inplace)
         return img
+
+
+class ToTensor(BasicTransform):
+
+    def __init__(self):
+        super(ToTensor, self).__init__(always_apply=True)
+
+    @property
+    def targets(self):
+        return {
+            'image': self.apply,
+            'mask': self.apply_to_mask
+        }
+
+    def apply(self, img, **params):
+        return torch.from_numpy(img.transpose(2, 0, 1))
+
+    def apply_to_mask(self, mask, **params):
+        return torch.from_numpy(mask)
+
+
