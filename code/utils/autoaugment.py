@@ -1,12 +1,13 @@
 # Code taken from https://github.com/DeepVoltaire/AutoAugment
 
+from abc import abstractstaticmethod
 from PIL import Image, ImageEnhance, ImageOps
 import numpy as np
 import random
 
 
-class CIFAR10Policy(object):
-    """ Randomly choose one of the best 25 Sub-policies on CIFAR10.
+class AbstractPolicy(object):
+    """ Randomly choose one of the best Sub-policies on a specific dataset.
 
         Example:
         >>> policy = CIFAR10Policy()
@@ -19,7 +20,35 @@ class CIFAR10Policy(object):
         >>>     transforms.ToTensor()])
     """
     def __init__(self, fillcolor=(128, 128, 128)):
-        self.policies = [
+        self.policies = self._get_policies(fillcolor)
+
+    @abstractstaticmethod
+    def _get_policies(fillcolor):
+        """Get the list of the best subpolicies computed with AutoAugment method for the specified dataset
+
+        Return:
+            List of the best subpolicies for the specified dataset"""
+
+        raise NotImplementedError
+
+    def __call__(self, img):
+        policy_idx = random.randint(0, len(self.policies) - 1)
+        return self.policies[policy_idx](img)
+
+    def __repr__(self):
+        return "AutoAugment {}".format(self.__class__.__name__)
+
+
+class CIFAR10Policy(AbstractPolicy):
+    """ Randomly choose one of the best 25 Sub-policies on CIFAR10."""
+
+    def __init__(self, **kwargs):
+        super(CIFAR10Policy, self).__init__(**kwargs)
+
+    @staticmethod
+    def _get_policies(fillcolor):
+
+        policies = [
             SubPolicy(0.1, "invert", 7, 0.2, "contrast", 6, fillcolor),
             SubPolicy(0.7, "rotate", 2, 0.3, "translateX", 9, fillcolor),
             SubPolicy(0.8, "sharpness", 1, 0.9, "sharpness", 3, fillcolor),
@@ -51,13 +80,46 @@ class CIFAR10Policy(object):
             SubPolicy(0.7, "translateY", 9, 0.9, "autocontrast", 1, fillcolor)
         ]
 
+        return policies
 
-    def __call__(self, img):
-        policy_idx = random.randint(0, len(self.policies) - 1)
-        return self.policies[policy_idx](img)
 
-    def __repr__(self):
-        return "AutoAugment CIFAR10 Policy"
+class ImageNetPolicy(object):
+    """ Randomly choose one of the best 20 Sub-policies on ImageNet."""
+
+    def __init__(self, **kwargs):
+        super(ImageNetPolicy, self).__init__(**kwargs)
+
+    @staticmethod
+    def _get_policies(fillcolor):
+
+        policies = [
+            SubPolicy(0.4, "posterize", 8, 0.6, "rotate", 9, fillcolor),
+            SubPolicy(0.6, "solarize", 5, 0.6, "autocontrast", 5, fillcolor),
+            SubPolicy(0.8, "equalize", 8, 0.6, "equalize", 3, fillcolor),
+            SubPolicy(0.6, "posterize", 7, 0.6, "posterize", 6, fillcolor),
+            SubPolicy(0.4, "equalize", 7, 0.2, "solarize", 4, fillcolor),
+
+            SubPolicy(0.4, "equalize", 4, 0.8, "rotate", 8, fillcolor),
+            SubPolicy(0.6, "solarize", 3, 0.6, "equalize", 7, fillcolor),
+            SubPolicy(0.8, "posterize", 5, 1.0, "equalize", 2, fillcolor),
+            SubPolicy(0.2, "rotate", 3, 0.6, "solarize", 8, fillcolor),
+            SubPolicy(0.6, "equalize", 8, 0.4, "posterize", 6, fillcolor),
+
+            SubPolicy(0.8, "rotate", 8, 0.4, "color", 0, fillcolor),
+            SubPolicy(0.4, "rotate", 9, 0.6, "equalize", 2, fillcolor),
+            SubPolicy(0.0, "equalize", 7, 0.8, "equalize", 8, fillcolor),
+            SubPolicy(0.6, "invert", 4, 1.0, "equalize", 8, fillcolor),
+            SubPolicy(0.6, "color", 4, 1.0, "contrast", 8, fillcolor),
+
+            SubPolicy(0.8, "rotate", 8, 1.0, "color", 2, fillcolor),
+            SubPolicy(0.8, "color", 8, 0.8, "solarize", 7, fillcolor),
+            SubPolicy(0.4, "sharpness", 7, 0.6, "invert", 8, fillcolor),
+            SubPolicy(0.6, "shearX", 5, 1.0, "equalize", 9, fillcolor),
+            SubPolicy(0.4, "color", 0, 0.6, "equalize", 3, fillcolor),
+
+        ]
+
+        return policies
 
 
 class SubPolicy(object):
@@ -120,8 +182,74 @@ class SubPolicy(object):
         self.operation2 = func[operation2]
         self.magnitude2 = ranges[operation2][magnitude_idx2]
 
-
     def __call__(self, img):
         if random.random() < self.p1: img = self.operation1(img, self.magnitude1)
         if random.random() < self.p2: img = self.operation2(img, self.magnitude2)
+        return img
+
+
+class SubPolicyBackward(object):
+    """Subpolicy with a backward relationship to revert the action (useful for segmentation)"""
+
+    def __init__(self, p1, operation1, magnitude_idx1, p2, operation2, magnitude_idx2):
+        ranges = {
+            "rotate90": np.array([0, 1, 2, 3]),
+            "color": np.linspace(0.0, 0.9, 10),
+            "posterize": np.round(np.linspace(8, 4, 10), 0).astype(np.int),
+            "solarize": np.linspace(256, 0, 10),
+            "contrast": np.linspace(0.0, 0.9, 10),
+            "sharpness": np.linspace(0.0, 0.9, 10),
+            "brightness": np.linspace(0.0, 0.9, 10),
+            "autocontrast": [0] * 10,
+            "equalize": [0] * 10,
+            "invert": [0] * 10
+        }
+
+        def rotate90(img, magnitude, axes):
+            return np.rot90(img, k=magnitude, axes=axes)
+
+        func = {
+            "rotate": [lambda img, magnitude: rotate90(img, magnitude, (0, 1)),
+                       lambda img, magnitude: rotate90(img, magnitude, (1, 0))],
+            # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
+            "color": [lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])), None],
+            "posterize": [lambda img, magnitude: ImageOps.posterize(img, magnitude), None],
+            "solarize": [lambda img, magnitude: ImageOps.solarize(img, magnitude), None],
+            "contrast": [lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
+                1 + magnitude * random.choice([-1, 1])), None],
+            "sharpness": [lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
+                1 + magnitude * random.choice([-1, 1])), None],
+            "brightness": [lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
+                1 + magnitude * random.choice([-1, 1])), None],
+            "autocontrast": [lambda img, magnitude: ImageOps.autocontrast(img), None],
+            "equalize": [lambda img, magnitude: ImageOps.equalize(img), None],
+            "invert": [lambda img, magnitude: ImageOps.invert(img), None],
+        }
+
+        self.p1 = p1
+        self.operation1 = func[operation1][0]
+        self.backward_operation1 = func[operation1][1]
+        self.magnitude1 = ranges[operation1][magnitude_idx1]
+        self.p2 = p2
+        self.operation2 = func[operation2][0]
+        self.backward_operation2 = func[operation2][1]
+        self.magnitude2 = ranges[operation2][magnitude_idx2]
+
+        self.applied_backward = []
+
+    def apply_backward_mask(self, mask):
+        """Apply the backward operations associated to the operations applied during the forward pass on the mask"""
+        for op in reversed(self.applied_backward):
+            if op is not None:
+                mask = op(mask)
+
+        return mask
+
+    def __call__(self, img):
+        if random.random() < self.p1:
+            img = self.operation1(img, self.magnitude1)
+            self.applied_backward.append(self.backward_operation1)
+        if random.random() < self.p2:
+            img = self.operation2(img, self.magnitude2)
+            self.applied_backward.append(self.backward_operation2)
         return img

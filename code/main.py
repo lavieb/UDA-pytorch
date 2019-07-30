@@ -1,47 +1,37 @@
-
 # Unsupervised Data Augmentation method on a dataset
 # https://arxiv.org/pdf/1904.12848.pdf
 
 
 import argparse
-import traceback
-from pathlib import Path
 import tempfile
-import math
-
+import traceback
 from functools import partial
+from pathlib import Path
 
+import ignite
+import mlflow
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import CosineAnnealingLR
-
 import torchcontrib
-
-import ignite
-from ignite.engine import Events, Engine, create_supervised_evaluator
-from ignite.metrics import Accuracy, Loss, RunningAverage
-from ignite.utils import convert_tensor
-
 from ignite.contrib.handlers import TensorboardLogger, ProgressBar
+from ignite.contrib.handlers import create_lr_scheduler_with_warmup
 from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutputHandler, \
     OptimizerParamsHandler as tbOptimizerParamsHandler
-
-from ignite.contrib.handlers import create_lr_scheduler_with_warmup
-
-import mlflow
-
-from utils import set_seed, get_train_test_loaders, get_model
+from ignite.engine import Events, Engine, create_supervised_evaluator
+from ignite.metrics import Accuracy, RunningAverage
+from ignite.utils import convert_tensor
+from torch.optim.lr_scheduler import CosineAnnealingLR
+from utils import get_train_test_loaders, get_model
 from utils.tsa import TrainingSignalAnnealing
 
 
 def run(output_path, config):
-
     device = "cuda"
     batch_size = config['batch_size']
 
     train_labelled_loader, train_unlabelled_loader, test_loader = \
-        get_train_test_loaders(dataset_name=config['dataset'], 
+        get_train_test_loaders(dataset_name=config['dataset'],
                                num_labelled_samples=config['num_labelled_samples'],
                                path=config['data_path'],
                                batch_size=batch_size,
@@ -50,7 +40,7 @@ def run(output_path, config):
 
     model = get_model(config['model'])
     model = model.to(device)
-    
+
     optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'],
                           momentum=config['momentum'],
                           weight_decay=config['weight_decay'],
@@ -67,7 +57,7 @@ def run(output_path, config):
         consistency_criterion = nn.KLDivLoss(reduction='batchmean')
     else:
         raise RuntimeError("Unknown consistency criterion {}".format(config['consistency_criterion']))
-    
+
     consistency_criterion = consistency_criterion.to(device)
 
     le = len(train_labelled_loader)
@@ -99,18 +89,18 @@ def run(output_path, config):
     train_unlabelled_loader_iter = cycle(train_unlabelled_loader)
 
     lam = config['consistency_lambda']
-    
+
     tsa = TrainingSignalAnnealing(num_steps=num_train_steps,
-                                  min_threshold=config['TSA_proba_min'], 
+                                  min_threshold=config['TSA_proba_min'],
                                   max_threshold=config['TSA_proba_max'])
 
     with_tsa = config['with_TSA']
     with_UDA = not config['no_UDA']
 
     def uda_process_function(engine, labelled_batch):
-        
+
         x, y = _prepare_batch(labelled_batch, device=device, non_blocking=True)
-    
+
         if with_UDA:
             unsup_x, unsup_aug_x = next(train_unlabelled_loader_iter)
             unsup_x = convert_tensor(unsup_x, device=device, non_blocking=True)
@@ -130,7 +120,7 @@ def run(output_path, config):
             engine.state.tsa_log = {
                 "new_y_pred": new_y_pred,
                 "loss": loss.item(),
-                "tsa_loss": new_loss.item() 
+                "tsa_loss": new_loss.item()
             }
             supervised_loss = new_loss
 
@@ -145,7 +135,7 @@ def run(output_path, config):
             consistency_loss = consistency_criterion(unsup_aug_y_probas, unsup_orig_y_probas)
 
         final_loss = supervised_loss
-        
+
         if with_UDA:
             final_loss += lam * consistency_loss
 
@@ -157,7 +147,7 @@ def run(output_path, config):
             'supervised batch loss': supervised_loss.item(),
             'consistency batch loss': consistency_loss.item() if with_UDA else 0.0,
             'final batch loss': final_loss.item(),
-        }    
+        }
 
     trainer = Engine(uda_process_function)
 
@@ -170,7 +160,7 @@ def run(output_path, config):
                 mlflow.log_metric("TSA selection", engine.state.tsa_log['new_y_pred'].shape[0], step=step)
                 mlflow.log_metric("Original X Loss", engine.state.tsa_log['loss'], step=step)
                 mlflow.log_metric("TSA X Loss", engine.state.tsa_log['tsa_loss'], step=step)
-    
+
     if not hasattr(lr_scheduler, "step"):
         trainer.add_event_handler(Events.ITERATION_STARTED, lr_scheduler)
     else:
@@ -191,7 +181,7 @@ def run(output_path, config):
 
         @trainer.on(Events.EPOCH_COMPLETED)
         def update_swa(engine):
-            if engine.state.epoch - 1 > int(num_epochs * 0.75): 
+            if engine.state.epoch - 1 > int(num_epochs * 0.75):
                 optimizer.update_swa()
 
     metric_names = [
@@ -201,7 +191,7 @@ def run(output_path, config):
     ]
 
     def output_transform(x, name):
-        return x[name]    
+        return x[name]
 
     for n in metric_names:
         RunningAverage(output_transform=partial(output_transform, name=n), epoch_bound=False).attach(trainer, n)
@@ -212,7 +202,9 @@ def run(output_path, config):
 
     tb_logger = TensorboardLogger(log_dir=output_path)
     tb_logger.attach(trainer,
-                     log_handler=tbOutputHandler(tag="train", metric_names=['final batch loss', 'consistency batch loss', 'supervised batch loss']),
+                     log_handler=tbOutputHandler(tag="train",
+                                                 metric_names=['final batch loss', 'consistency batch loss',
+                                                               'supervised batch loss']),
                      event_name=Events.ITERATION_COMPLETED)
     tb_logger.attach(trainer,
                      log_handler=tbOptimizerParamsHandler(optimizer, param_name="lr"),
@@ -224,7 +216,7 @@ def run(output_path, config):
 
     evaluator = create_supervised_evaluator(model, metrics=metrics, device=device, non_blocking=True)
     train_evaluator = create_supervised_evaluator(model, metrics=metrics, device=device, non_blocking=True)
-    
+
     def run_validation(engine, val_interval):
         if (engine.state.epoch - 1) % val_interval == 0:
             train_evaluator.run(train_labelled_loader)
@@ -266,7 +258,7 @@ def run(output_path, config):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("Training a CNN on a dataset")
-    
+
     parser.add_argument('dataset', type=str, choices=['CIFAR10', 'CIFAR100'],
                         help="Training/Testing dataset")
 
@@ -274,17 +266,17 @@ if __name__ == "__main__":
 
     parser.add_argument('--params', type=str,
                         help='Override default configuration with parameters: '
-                        'data_path=/path/to/dataset;batch_size=64;num_workers=12 ...')
+                             'data_path=/path/to/dataset;batch_size=64;num_workers=12 ...')
 
     args = parser.parse_args()
 
-    dataset_name = args.dataset    
-    network_name = args.network    
-    
-    print("Train {} on {}".format(network_name, dataset_name))    
+    dataset_name = args.dataset
+    network_name = args.network
+
+    print("Train {} on {}".format(network_name, dataset_name))
     print("- PyTorch version: {}".format(torch.__version__))
     print("- Ignite version: {}".format(ignite.__version__))
-    
+
     assert torch.cuda.is_available()
     torch.backends.cudnn.benchmark = True
     print("- CUDA version: {}".format(torch.version.cuda))
@@ -304,7 +296,7 @@ if __name__ == "__main__":
         "num_workers": 10,
 
         "num_epochs": num_epochs,
-        
+
         "learning_rate": 0.03,
         "min_lr_ratio": 0.004,
         "num_warmup_steps": 0,
@@ -341,7 +333,7 @@ if __name__ == "__main__":
     # dump all python files to reproduce the run
     mlflow.log_artifacts(Path(__file__).parent.as_posix())
 
-    with tempfile.TemporaryDirectory() as tmpdirname:                        
+    with tempfile.TemporaryDirectory() as tmpdirname:
         try:
             run(tmpdirname, config)
         except Exception as e:
