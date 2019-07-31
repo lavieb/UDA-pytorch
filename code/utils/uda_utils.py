@@ -122,3 +122,18 @@ def train_update_function(engine,
         'consistency batch loss': train2_loss + train1_unsup_loss,
         'final batch loss': final_loss.item(),
     }
+
+
+def load_params(model,
+                optimizer=None,
+                model_file='',
+                optimizer_file='',
+                device_name='cpu'):
+
+    if model_file:
+        load_checkpoint = torch.load(model_file, map_location=device_name)
+        model.load_state_dict(load_checkpoint)
+
+    if optimizer is not None and optimizer_file:
+        load_checkpoint = torch.load(optimizer_file, map_location=device_name)
+        optimizer.load_state_dict(load_checkpoint)

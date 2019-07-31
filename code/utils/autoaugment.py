@@ -286,9 +286,6 @@ class SubBackwardPolicy(object):
             "invert": [0] * 10
         }
 
-        def rotate90(img, magnitude, axes):
-            return np.rot90(img, k=magnitude, axes=axes)
-
         func = {
             "rotate90": [lambda img, magnitude: np.rot90(img, k=magnitude, axes=(0, 1)),
                          lambda mask, magnitude: torch.rot90(mask, k=magnitude, dims=(2, 1))],

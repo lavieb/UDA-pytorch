@@ -29,7 +29,7 @@ from utils.tsa import TrainingSignalAnnealing
 from polyaxon_client.tracking import Experiment, get_outputs_path, get_outputs_refs_paths
 from polyaxon_client.exceptions import PolyaxonClientException
 
-from utils.uda_utils import cycle, train_update_function, compute_supervised_loss, compute_unsupervised_loss
+from utils.uda_utils import cycle, train_update_function, compute_supervised_loss, compute_unsupervised_loss, load_params
 from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_logging, log_tsa, log_learning_rate, setup_logger
 
 
@@ -61,6 +61,12 @@ def run(train_config, logger, **kwargs):
     save_model_dir = os.path.join(save_dir, saves_dict.get('model_dir', ''))
     save_prediction_dir = os.path.join(save_dir, saves_dict.get('prediction_dir', ''))
     save_config_dir = os.path.join(save_dir, saves_dict.get('config_dir', ''))
+    load_model_file = saves_dict.get('load_model_file', '')
+    load_optimizer_file = saves_dict.get('load_optimizer_file', '')
+
+    if output_experiment_path is not None:
+        load_model_file = os.path.join(output_experiment_path, save_model_dir, load_model_file)
+        load_optimizer_file = os.path.join(output_experiment_path, save_model_dir, load_optimizer_file)
 
     num_epochs = train_config['num_epochs']
     device = train_config.get('device', 'cpu')
@@ -87,6 +93,9 @@ def run(train_config, logger, **kwargs):
 
     criterion = train_config['criterion'].to(device)
     consistency_criterion = train_config['consistency_criterion'].to(device)
+
+    # Load checkpoint
+    load_params(model, optimizer=optimizer, model_file=load_model_file, optimizer_file=load_optimizer_file, device_name=device)
 
     le = len(train1_sup_loader)
     num_train_steps = le * num_epochs
