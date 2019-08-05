@@ -105,13 +105,15 @@ def train_update_function(engine,
     train1_sup_loss = compute_supervised_loss(engine,
                                               sup_train_batch,
                                               model,
-                                              cfg)
+                                              cfg,
+                                              output_transform_model=output_transform_model)
 
     unsup_test_batch = next(train2_unsup_loader_iter)
     train2_loss = compute_unsupervised_loss(engine,
                                             unsup_test_batch,
                                             model,
-                                            cfg)
+                                            cfg,
+                                            output_transform_model=output_transform_model)
 
     final_loss = train1_sup_loss + cfg['lambda'] * (train1_unsup_loss + train2_loss)
     final_loss.backward()

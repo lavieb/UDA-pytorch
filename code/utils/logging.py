@@ -3,7 +3,12 @@ import tempfile
 import traceback
 from functools import partial
 from pathlib import Path
+from PIL import Image
 import logging
+import os
+import numpy as np
+from image_dataset_viz import render_datapoint
+
 
 import ignite
 import mlflow
@@ -18,10 +23,32 @@ from ignite.engine import Events, Engine, create_supervised_evaluator
 from ignite.metrics import Accuracy, RunningAverage
 from ignite.utils import convert_tensor
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from utils import get_uda2_train_test_loaders, get_model
-from utils.tsa import TrainingSignalAnnealing
+
+from ..utils import get_uda2_train_test_loaders, get_model
+from ..utils.tsa import TrainingSignalAnnealing
 
 LOGGING_FORMATTER = logging.Formatter("%(asctime)s|%(name)s|%(levelname)s| %(message)s")
+
+
+def _getvocpallete(num_cls):
+    n = num_cls
+    pallete = [0] * (n * 3)
+    for j in range(0, n):
+        lab = j
+        pallete[j * 3 + 0] = 0
+        pallete[j * 3 + 1] = 0
+        pallete[j * 3 + 2] = 0
+        i = 0
+        while lab > 0:
+            pallete[j * 3 + 0] |= (((lab >> 0) & 1) << (7 - i))
+            pallete[j * 3 + 1] |= (((lab >> 1) & 1) << (7 - i))
+            pallete[j * 3 + 2] |= (((lab >> 2) & 1) << (7 - i))
+            i = i + 1
+            lab >>= 3
+    return pallete
+
+
+vocpallete = _getvocpallete(256)
 
 
 def setup_logger(logger, level=logging.INFO):
@@ -66,3 +93,74 @@ def log_learning_rate(engine, optimizer):
     if step % 50 == 0:
         lr = optimizer.param_groups[0]['lr']
         mlflow.log_metric("learning rate", lr, step=step)
+
+
+def save_prediction(tag, prediction_dir, x, y, y_pred,):
+    """Save prediction in the prediction folder"""
+    x = x.cpu().detach().numpy().transpose((1, 2, 0)) if torch.is_tensor(x) else x
+    y = y.cpu().detach().numpy() if torch.is_tensor(y) else y
+    y_pred = y_pred.cpu().detach().numpy() if torch.is_tensor(y_pred) else y_pred
+
+    output_file = os.path.join(prediction_dir,
+                               "{}_prediction.jpg".format(tag))
+
+    write_prediction_on_image(mask=y,
+                              mask_predicted=y_pred,
+                              im=x,
+                              filepath=output_file)
+
+    return None
+
+
+def render_x(im):
+    q_min = 0
+    q_max = 100
+
+    vmin = np.percentile(im, q=q_min, axis=(0, 1), keepdims=True)
+    vmax = np.percentile(im, q=q_max, axis=(0, 1), keepdims=True)
+    x = np.clip(im, a_min=vmin, a_max=vmax)
+    x = (x - vmin) / (vmax - vmin + 1e-10) * 255
+    x = x.astype(np.uint8)
+
+    return x
+
+
+def write_prediction_on_image(mask, mask_predicted, im, filepath):
+    assert isinstance(mask, np.ndarray) and mask.ndim == 2, \
+        "{} and {}".format(type(mask), mask.shape if isinstance(mask, np.ndarray) else None)
+
+    assert isinstance(mask_predicted, np.ndarray) and mask_predicted.ndim == 2, \
+        "{} and {}".format(type(mask_predicted), mask_predicted.shape if isinstance(mask_predicted, np.ndarray) else None)
+
+    assert isinstance(im, np.ndarray) and im.ndim == 3, \
+        "{} and {}".format(type(im), im.shape if isinstance(im, np.ndarray) else None)
+
+    # Normalize for rendering
+    x = render_x(im)
+
+    # Save the images and masks
+    im = Image.fromarray(x).convert('RGB')
+
+    pil_gt = Image.fromarray(mask.astype('uint8'))
+    pil_gt.putpalette(vocpallete)
+    pil_gt = pil_gt.convert('RGB')
+    res_gt = render_datapoint(im, pil_gt)
+
+    pil_pred = Image.fromarray(mask_predicted.astype('uint8'))
+    pil_pred.putpalette(vocpallete)
+    pil_pred = pil_pred.convert('RGB')
+    res_pred = render_datapoint(im, pil_pred)
+
+    size_image = (mask.shape[0], mask.shape[1])
+    nb_cols = 2
+    nb_rows = 4
+
+    tiles = [[im, res_gt, pil_gt], [im, res_pred, pil_pred]]
+
+    cvs = Image.new('RGB', (nb_cols * size_image[0], nb_rows * size_image[1]))
+    for i_row in range(nb_cols):
+        for i_col in range(nb_rows):
+            px, py = (i_row * size_image[0], i_col * size_image[1])
+            cvs.paste(tiles[i_row][i_col], (px, py))
+
+    cvs.save(filepath)

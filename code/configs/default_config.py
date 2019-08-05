@@ -2,9 +2,9 @@ import albumentations as albu
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from utils import get_uda_train_test_loaders
-from utils.autoaugment import ImageNetBackwardPolicy
-from utils.transforms import ToTensor
+from ..utils import get_uda_train_test_loaders
+from ..utils.autoaugment import ImageNetBackwardPolicy
+from ..utils.transforms import ToTensor
 
 # Transformations
 
@@ -46,6 +46,7 @@ device = "cuda"
 num_epochs = 200
 num_classes = 2
 val_interval = 1
+pred_interval = 200
 
 # Save configuration
 saves = {'save_dir': '',

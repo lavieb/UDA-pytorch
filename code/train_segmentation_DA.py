@@ -22,13 +22,13 @@ from ignite.contrib.handlers.polyaxon_logger import PolyaxonLogger, OutputHandle
 from ignite.handlers import ModelCheckpoint
 from ignite.engine import Events, Engine, create_supervised_evaluator
 from ignite.metrics import Accuracy, RunningAverage
-from utils.tsa import TrainingSignalAnnealing
 
 from polyaxon_client.tracking import Experiment, get_outputs_path, get_outputs_refs_paths
 from polyaxon_client.exceptions import PolyaxonClientException
 
 from utils.uda_utils import cycle, train_update_function, load_params, inference_update_function, inference_standard
-from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_logging, log_tsa, log_learning_rate
+from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_logging, log_tsa, log_learning_rate, save_prediction
+from utils.tsa import TrainingSignalAnnealing
 
 
 def run(train_config, logger, **kwargs):
@@ -84,6 +84,7 @@ def run(train_config, logger, **kwargs):
     n_saved = saves_dict.get('n_saved', 0)
 
     val_interval = train_config.get('val_interval', 1)
+    pred_interval = train_config.get('pred_interval', 0)
 
     model = train_config['model'].to(device)
 
@@ -218,6 +219,33 @@ def run(train_config, logger, **kwargs):
         if (engine.state.epoch - 1) % val_interval == 0:
             train_evaluator.run(train1_sup_loader)
             evaluator.run(test_loader)
+
+        if save_prediction_dir:
+            train_output = train_evaluator.state.output
+            test_output = evaluator.state.output
+
+            iteration = str(trainer.state.iteration)
+            epoch = str(trainer.state.epoch)
+
+            save_prediction('train_{}_{}'.format(iteration, epoch),
+                            save_prediction_dir,
+                            train_output['x'],
+                            torch.argmax(train_output['y'][0, :, :, :], dim=0),
+                            torch.argmax(train_output['y_pred'][0, :, :, :], dim=0))
+
+            save_prediction('test_{}_{}'.format(iteration, epoch),
+                            save_prediction_dir,
+                            test_output['x'],
+                            torch.argmax(test_output['y'][0, :, :, :], dim=0),
+                            torch.argmax(test_output['y_pred'][0, :, :, :], dim=0))
+
+    def trainer_prediction_save(engine):
+        if (engine.state.iteration - 1) % pred_interval:
+
+            if save_prediction_dir:
+                trainer_output = l
+
+                logger.debug('Saved trainer prediction for iteration {}'.format(str(engine.state.iteration)))
 
     trainer.add_event_handler(Events.EPOCH_STARTED, run_validation, val_interval=2)
     trainer.add_event_handler(Events.COMPLETED, run_validation, val_interval=1)
