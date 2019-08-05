@@ -27,7 +27,7 @@ from utils.tsa import TrainingSignalAnnealing
 from polyaxon_client.tracking import Experiment, get_outputs_path, get_outputs_refs_paths
 from polyaxon_client.exceptions import PolyaxonClientException
 
-from utils.uda_utils import cycle, train_update_function, load_params
+from utils.uda_utils import cycle, train_update_function, load_params, inference_update_function, inference_standard
 from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_logging, log_tsa, log_learning_rate
 
 
@@ -92,6 +92,8 @@ def run(train_config, logger, **kwargs):
     criterion = train_config['criterion'].to(device)
     consistency_criterion = train_config['consistency_criterion'].to(device)
 
+    inference_fn = train_config.get('inference_fn', inference_standard)
+
     # Load checkpoint
     load_params(model, optimizer=optimizer, model_file=load_model_file, optimizer_file=load_optimizer_file, device_name=device)
 
@@ -117,6 +119,8 @@ def run(train_config, logger, **kwargs):
     train1_unsup_loader_iter = cycle(train1_unsup_loader)
     train2_unsup_loader_iter = cycle(train2_unsup_loader)
 
+    output_transform_model = train_config.get('output_transform_model', lambda x: x)
+
     lam = train_config['consistency_lambda']
 
     tsa = TrainingSignalAnnealing(num_steps=num_train_steps,
@@ -138,7 +142,8 @@ def run(train_config, logger, **kwargs):
                              cfg=cfg,
                              train1_sup_loader_iter=train1_sup_loader_iter,
                              train1_unsup_loader_iter=train1_unsup_loader_iter,
-                             train2_unsup_loader_iter=train2_unsup_loader_iter))
+                             train2_unsup_loader_iter=train2_unsup_loader_iter,
+                             output_transform_model=output_transform_model))
 
     if with_tsa:
         trainer.add_event_handler(Events.ITERATION_COMPLETED, log_tsa, tsa)
@@ -187,8 +192,17 @@ def run(train_config, logger, **kwargs):
         "accuracy": Accuracy(),
     }
 
-    evaluator = create_supervised_evaluator(model, metrics=metrics, device=device, non_blocking=True)
-    train_evaluator = create_supervised_evaluator(model, metrics=metrics, device=device, non_blocking=True)
+    inference_update_fn = partial(inference_update_function,
+                                  model=model,
+                                  output_transform_model=output_transform_model,
+                                  inference_fn=inference_fn)
+
+    evaluator = Engine(inference_update_fn)
+    train_evaluator = Engine(inference_update_fn)
+
+    for name, metric in metrics:
+        metric.attach(train_evaluator, name)
+        metric.attach(evaluator, name)
 
     # Add checkpoint
     if save_model_dir:

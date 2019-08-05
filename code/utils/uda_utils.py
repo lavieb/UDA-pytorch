@@ -18,9 +18,6 @@ from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutput
 from ignite.engine import Events, Engine, create_supervised_evaluator
 from ignite.metrics import Accuracy, RunningAverage
 from ignite.utils import convert_tensor
-from torch.optim.lr_scheduler import CosineAnnealingLR
-from utils import get_uda2_train_test_loaders, get_model
-from utils.tsa import TrainingSignalAnnealing
 
 
 def prepare_batch(batch, device, non_blocking):
@@ -38,10 +35,11 @@ def cycle(iterable):
 def compute_supervised_loss(engine,
                             batch,
                             model,
-                            cfg):
+                            cfg,
+                            output_transform_model=lambda x: x):
 
     x, y = prepare_batch(batch, device=cfg['device'], non_blocking=True)
-    y_pred = model(x)
+    y_pred = output_transform_model(model(x))
 
     # Supervised part
     loss = cfg['criterion'](y_pred, y)
@@ -63,19 +61,20 @@ def compute_supervised_loss(engine,
 def compute_unsupervised_loss(engine,
                               batch,
                               model,
-                              cfg):
+                              cfg,
+                              output_transform_model=lambda x: x):
 
-    unsup_dp, unsup_aug_dp, transf = batch
+    unsup_dp, unsup_aug_dp, back_transf = batch
     unsup_x = convert_tensor(unsup_dp, device=cfg['device'], non_blocking=True)
     unsup_aug_x = convert_tensor(unsup_aug_dp, device=cfg['device'], non_blocking=True)
 
     # Unsupervised part
-    unsup_orig_y_pred = model(unsup_x).detach()
+    unsup_orig_y_pred = output_transform_model(model(unsup_x)).detach()
     unsup_orig_y_probas = torch.softmax(unsup_orig_y_pred, dim=-1)
 
-    unsup_aug_y_pred = model(unsup_aug_x)
+    unsup_aug_y_pred = output_transform_model(model(unsup_aug_x))
     unsup_aug_y_probas = torch.log_softmax(unsup_aug_y_pred, dim=-1)
-    unsup_aug_y_probas = transf.apply_backward(unsup_aug_y_probas)
+    unsup_aug_y_probas = back_transf(unsup_aug_y_probas)
 
     consistency_loss = cfg['consistency_criterion'](unsup_aug_y_probas, unsup_orig_y_probas)
 
@@ -89,7 +88,8 @@ def train_update_function(engine,
                           cfg,
                           train1_unsup_loader_iter,
                           train1_sup_loader_iter,
-                          train2_unsup_loader_iter):
+                          train2_unsup_loader_iter,
+                          output_transform_model=lambda x: x):
 
     model.train()
     optimizer.zero_grad()
@@ -98,7 +98,8 @@ def train_update_function(engine,
     train1_unsup_loss = compute_unsupervised_loss(engine,
                                                   unsup_train_batch,
                                                   model,
-                                                  cfg)
+                                                  cfg,
+                                                  output_transform_model=output_transform_model)
 
     sup_train_batch = next(train1_sup_loader_iter)
     train1_sup_loss = compute_supervised_loss(engine,
@@ -122,6 +123,49 @@ def train_update_function(engine,
         'consistency batch loss': train2_loss + train1_unsup_loss,
         'final batch loss': final_loss.item(),
     }
+
+
+def inference_update_function(engine,
+                              batch,
+                              model,
+                              cfg,
+                              output_transform_model=lambda x: x,
+                              inference_fn=None):
+    model.eval()
+    with torch.no_grad():
+        x, y = batch
+        x = convert_tensor(x, device=cfg['device'], non_blocking=True)
+        y = convert_tensor(y, device=cfg['device'], non_blocking=True)
+
+        if inference_fn is not None:
+            # Custom inference function
+            y_pred = inference_fn(x)
+        else:
+            # Default inference function (forward the input through the model without further processing)
+            y_pred = output_transform_model(model(x))
+
+        return {'x': x[0, :, :, :],
+                'y_pred': y_pred,
+                'y': y}
+
+
+def inference_standard(im,
+                       model,
+                       output_transform_model=lambda x: x,
+                       **kwargs):
+    """Infer folllowing the TTA method
+
+    Args:
+        im: batch image to infer
+        model: the model used for inference
+        output_transform_model: transform of model output
+
+    Return:
+        the predicted mask and the image preprocessed (numpy array)"""
+
+    prediction = output_transform_model(model(im))
+
+    return prediction
 
 
 def load_params(model,

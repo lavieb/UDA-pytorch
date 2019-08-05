@@ -58,6 +58,11 @@ class AbstractBackwardPolicy(BasicTransform):
 
         raise NotImplementedError
 
+    @property
+    def targets(self):
+        return {'image': self.apply,
+                'mask': self.apply_to_mask}
+
     def apply(self, img, **params):
         policy_idx = random.randint(0, len(self.policies) - 1)
         policy = self.policies[policy_idx]

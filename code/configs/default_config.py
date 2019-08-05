@@ -1,75 +1,43 @@
-import argparse
-import tempfile
-import traceback
-from functools import partial
-from pathlib import Path
-import logging
-import os
-
 import albumentations as albu
-import ignite
-import mlflow
-import torch
 import torch.nn as nn
 import torch.optim as optim
-from ignite.contrib.handlers import TensorboardLogger, ProgressBar
-from ignite.contrib.handlers import create_lr_scheduler_with_warmup
-from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutputHandler, \
-    OptimizerParamsHandler as tbOptimizerParamsHandler
-from ignite.contrib.handlers.polyaxon_logger import PolyaxonLogger, OutputHandler as plxOutputHandler
-from ignite.handlers import ModelCheckpoint
-from ignite.engine import Events, Engine, create_supervised_evaluator
-from ignite.metrics import Accuracy, RunningAverage
-from ignite.utils import convert_tensor
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from utils import get_uda_train_test_loaders, get_model
-from utils.tsa import TrainingSignalAnnealing
-
-from polyaxon_client.tracking import Experiment, get_outputs_path, get_outputs_refs_paths
-from polyaxon_client.exceptions import PolyaxonClientException
-
-from utils.uda_utils import cycle, train_update_function, compute_supervised_loss, compute_unsupervised_loss
-from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_logging, log_tsa, log_learning_rate, setup_logger
-from utils.autoaugment import SubBackwardPolicy, ImageNetBackwardPolicy
+from utils import get_uda_train_test_loaders
+from utils.autoaugment import ImageNetBackwardPolicy
 from utils.transforms import ToTensor
 
 # Transformations
 
 
-def train_transform_fn(im, mask):
-    autotransf = ImageNetBackwardPolicy()
+def train_transform_fn(dp):
+    albu_train_transform = albu.Compose([ToTensor()])
+    albu_train_transform_fn = lambda x: albu_train_transform(**x)
 
-    albu_train_transform = albu.Compose([autotransf,
-                                         ToTensor()])
-    albu_train_transform_fn = lambda dp: albu_train_transform(**dp)
-
-    dp = albu_train_transform_fn({'image': im,
-                                  'mask': mask})
+    dp = albu_train_transform_fn(dp)
 
     return dp['image'], dp['mask']
 
 
-def test_transform_fn(im, mask):
+def test_transform_fn(dp):
     albu_test_transform = albu.Compose([ToTensor()])
-    albu_test_transform_fn = lambda dp: albu_test_transform(**dp)
+    albu_test_transform_fn = lambda x: albu_test_transform(**x)
 
-    dp = albu_test_transform_fn({'image': im,
-                                 'mask': mask})
+    dp = albu_test_transform_fn(dp)
 
     return dp['image'], dp['mask']
 
 
-def unsup_transform_fn(im, mask):
+def unsup_transform_fn(dp):
     autotransf = ImageNetBackwardPolicy()
 
+    original_im = dp['image']
     albu_unsup_transform = albu.Compose([autotransf,
                                          ToTensor()])
-    albu_unsup_transform_fn = lambda dp: albu_unsup_transform(**dp)
+    albu_unsup_transform_fn = lambda x: albu_unsup_transform(**x)
 
-    dp = albu_unsup_transform_fn({'image': im,
-                                  'mask': mask})
+    dp = albu_unsup_transform_fn(dp)
 
-    return dp['image'], dp['mask'], autotransf
+    return original_im, dp['image'], autotransf
 
 
 debug = True
