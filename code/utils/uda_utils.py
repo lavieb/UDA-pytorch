@@ -1,22 +1,6 @@
 # Variation of UDA
 
-import argparse
-import tempfile
-import traceback
-from functools import partial
-from pathlib import Path
-
-import ignite
-import mlflow
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from ignite.contrib.handlers import TensorboardLogger, ProgressBar
-from ignite.contrib.handlers import create_lr_scheduler_with_warmup
-from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutputHandler, \
-    OptimizerParamsHandler as tbOptimizerParamsHandler
-from ignite.engine import Events, Engine, create_supervised_evaluator
-from ignite.metrics import Accuracy, RunningAverage
 from ignite.utils import convert_tensor
 
 
@@ -78,7 +62,8 @@ def compute_unsupervised_loss(engine,
 
     consistency_loss = cfg['consistency_criterion'](unsup_aug_y_probas, unsup_orig_y_probas)
 
-    return consistency_loss
+    return consistency_loss, {'x': unsup_x[0, :, :, :],
+                              'y_pred': torch.argmax(unsup_orig_y_pred[0, :, :, :], dim=0)}
 
 
 def train_update_function(engine,
@@ -95,11 +80,11 @@ def train_update_function(engine,
     optimizer.zero_grad()
 
     unsup_train_batch = next(train1_unsup_loader_iter)
-    train1_unsup_loss = compute_unsupervised_loss(engine,
-                                                  unsup_train_batch,
-                                                  model,
-                                                  cfg,
-                                                  output_transform_model=output_transform_model)
+    train1_unsup_loss, _ = compute_unsupervised_loss(engine,
+                                                     unsup_train_batch,
+                                                     model,
+                                                     cfg,
+                                                     output_transform_model=output_transform_model)
 
     sup_train_batch = next(train1_sup_loader_iter)
     train1_sup_loss = compute_supervised_loss(engine,
@@ -109,11 +94,11 @@ def train_update_function(engine,
                                               output_transform_model=output_transform_model)
 
     unsup_test_batch = next(train2_unsup_loader_iter)
-    train2_loss = compute_unsupervised_loss(engine,
-                                            unsup_test_batch,
-                                            model,
-                                            cfg,
-                                            output_transform_model=output_transform_model)
+    train2_loss, unsup_pred = compute_unsupervised_loss(engine,
+                                                        unsup_test_batch,
+                                                        model,
+                                                        cfg,
+                                                        output_transform_model=output_transform_model)
 
     final_loss = train1_sup_loss + cfg['lambda'] * (train1_unsup_loss + train2_loss)
     final_loss.backward()
@@ -124,6 +109,7 @@ def train_update_function(engine,
         'supervised batch loss': train1_sup_loss,
         'consistency batch loss': train2_loss + train1_unsup_loss,
         'final batch loss': final_loss.item(),
+        'unsup pred': unsup_pred
     }
 
 

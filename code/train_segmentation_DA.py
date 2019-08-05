@@ -1,29 +1,22 @@
 """This file is a variation of the UDA applied for segmentation task"""
 
-import argparse
-import tempfile
-import traceback
 from functools import partial
-from pathlib import Path
 import logging
 import os
 import shutil
 
-import ignite
 import mlflow
 import torch
-import torch.nn as nn
-import torch.optim as optim
 from ignite.contrib.handlers import TensorboardLogger, ProgressBar
 from ignite.contrib.handlers import create_lr_scheduler_with_warmup
 from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutputHandler, \
     OptimizerParamsHandler as tbOptimizerParamsHandler
 from ignite.contrib.handlers.polyaxon_logger import PolyaxonLogger, OutputHandler as plxOutputHandler
 from ignite.handlers import ModelCheckpoint
-from ignite.engine import Events, Engine, create_supervised_evaluator
+from ignite.engine import Events, Engine
 from ignite.metrics import Accuracy, RunningAverage
 
-from polyaxon_client.tracking import Experiment, get_outputs_path, get_outputs_refs_paths
+from polyaxon_client.tracking import get_outputs_path, get_outputs_refs_paths
 from polyaxon_client.exceptions import PolyaxonClientException
 
 from utils.uda_utils import cycle, train_update_function, load_params, inference_update_function, inference_standard
@@ -215,7 +208,7 @@ def run(train_config, logger, **kwargs):
         trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint, {'mymodel': model,
                                                                        'optimizer': optimizer})
 
-    def run_validation(engine):
+    def run_validation(engine, validation_interval):
         if (engine.state.epoch - 1) % val_interval == 0:
             train_evaluator.run(train1_sup_loader)
             evaluator.run(test_loader)
@@ -230,25 +223,35 @@ def run(train_config, logger, **kwargs):
             save_prediction('train_{}_{}'.format(iteration, epoch),
                             save_prediction_dir,
                             train_output['x'],
-                            torch.argmax(train_output['y'][0, :, :, :], dim=0),
-                            torch.argmax(train_output['y_pred'][0, :, :, :], dim=0))
+                            torch.argmax(train_output['y_pred'][0, :, :, :], dim=0),
+                            y=torch.argmax(train_output['y'][0, :, :, :], dim=0))
 
             save_prediction('test_{}_{}'.format(iteration, epoch),
                             save_prediction_dir,
                             test_output['x'],
-                            torch.argmax(test_output['y'][0, :, :, :], dim=0),
-                            torch.argmax(test_output['y_pred'][0, :, :, :], dim=0))
+                            torch.argmax(test_output['y_pred'][0, :, :, :], dim=0),
+                            y=torch.argmax(test_output['y'][0, :, :, :], dim=0))
 
-    def trainer_prediction_save(engine):
+    trainer.add_event_handler(Events.EPOCH_STARTED, run_validation, validation_interval=val_interval)
+    trainer.add_event_handler(Events.COMPLETED, run_validation, validation_interval=1)
+
+    def trainer_prediction_save(engine, prediction_interval):
         if (engine.state.iteration - 1) % pred_interval:
 
             if save_prediction_dir:
-                trainer_output = l
+                trainer_output = trainer.state.output['unsup pred']
+
+                iteration = str(trainer.state.iteration)
+                epoch = str(trainer.state.epoch)
+
+                save_prediction('trainer_{}_{]'.format(iteration, epoch),
+                                save_prediction_dir,
+                                trainer_output['x'],
+                                trainer_output['y_pred'])
 
                 logger.debug('Saved trainer prediction for iteration {}'.format(str(engine.state.iteration)))
 
-    trainer.add_event_handler(Events.EPOCH_STARTED, run_validation, val_interval=2)
-    trainer.add_event_handler(Events.COMPLETED, run_validation, val_interval=1)
+    trainer.add_event_handler(Events.ITERATION_COMPLETED, trainer_prediction_save, prediction_interval=pred_interval)
 
     tb_logger.attach(train_evaluator,
                      log_handler=tbOutputHandler(tag="train",

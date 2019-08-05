@@ -1,31 +1,12 @@
-import argparse
-import tempfile
-import traceback
-from functools import partial
-from pathlib import Path
 from PIL import Image
 import logging
 import os
 import numpy as np
 from image_dataset_viz import render_datapoint
 
-
-import ignite
 import mlflow
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from ignite.contrib.handlers import TensorboardLogger, ProgressBar
-from ignite.contrib.handlers import create_lr_scheduler_with_warmup
-from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutputHandler, \
-    OptimizerParamsHandler as tbOptimizerParamsHandler
-from ignite.engine import Events, Engine, create_supervised_evaluator
-from ignite.metrics import Accuracy, RunningAverage
-from ignite.utils import convert_tensor
-from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from ..utils import get_uda2_train_test_loaders, get_model
-from ..utils.tsa import TrainingSignalAnnealing
 
 LOGGING_FORMATTER = logging.Formatter("%(asctime)s|%(name)s|%(levelname)s| %(message)s")
 
@@ -95,21 +76,25 @@ def log_learning_rate(engine, optimizer):
         mlflow.log_metric("learning rate", lr, step=step)
 
 
-def save_prediction(tag, prediction_dir, x, y, y_pred,):
+def save_prediction(tag, prediction_dir, x, y_pred, y=None):
     """Save prediction in the prediction folder"""
     x = x.cpu().detach().numpy().transpose((1, 2, 0)) if torch.is_tensor(x) else x
-    y = y.cpu().detach().numpy() if torch.is_tensor(y) else y
     y_pred = y_pred.cpu().detach().numpy() if torch.is_tensor(y_pred) else y_pred
 
     output_file = os.path.join(prediction_dir,
                                "{}_prediction.jpg".format(tag))
 
-    write_prediction_on_image(mask=y,
-                              mask_predicted=y_pred,
-                              im=x,
-                              filepath=output_file)
+    if y is not None:
+        y = y.cpu().detach().numpy() if torch.is_tensor(y) else y
 
-    return None
+        write_prediction_on_image(mask=y,
+                                  mask_predicted=y_pred,
+                                  im=x,
+                                  filepath=output_file)
+    else:
+        write_prediction_on_image2(mask_predicted=y_pred,
+                                   im=x,
+                                   filepath=output_file)
 
 
 def render_x(im):
@@ -152,10 +137,45 @@ def write_prediction_on_image(mask, mask_predicted, im, filepath):
     res_pred = render_datapoint(im, pil_pred)
 
     size_image = (mask.shape[0], mask.shape[1])
-    nb_cols = 2
-    nb_rows = 4
 
     tiles = [[im, res_gt, pil_gt], [im, res_pred, pil_pred]]
+
+    nb_cols = len(tiles)
+    nb_rows = len(tiles[0])
+
+    cvs = Image.new('RGB', (nb_cols * size_image[0], nb_rows * size_image[1]))
+    for i_row in range(nb_cols):
+        for i_col in range(nb_rows):
+            px, py = (i_row * size_image[0], i_col * size_image[1])
+            cvs.paste(tiles[i_row][i_col], (px, py))
+
+    cvs.save(filepath)
+
+
+def write_prediction_on_image2(mask_predicted, im, filepath):
+    assert isinstance(mask_predicted, np.ndarray) and mask_predicted.ndim == 2, \
+        "{} and {}".format(type(mask_predicted), mask_predicted.shape if isinstance(mask_predicted, np.ndarray) else None)
+
+    assert isinstance(im, np.ndarray) and im.ndim == 3, \
+        "{} and {}".format(type(im), im.shape if isinstance(im, np.ndarray) else None)
+
+    # Normalize for rendering
+    x = render_x(im)
+
+    # Save the images and masks
+    im = Image.fromarray(x).convert('RGB')
+
+    pil_pred = Image.fromarray(mask_predicted.astype('uint8'))
+    pil_pred.putpalette(vocpallete)
+    pil_pred = pil_pred.convert('RGB')
+    res_pred = render_datapoint(im, pil_pred)
+
+    size_image = (mask_predicted.shape[0], mask_predicted.shape[1])
+
+    tiles = [[im, res_pred, pil_pred]]
+
+    nb_cols = len(tiles)
+    nb_rows = len(tiles[0])
 
     cvs = Image.new('RGB', (nb_cols * size_image[0], nb_rows * size_image[1]))
     for i_row in range(nb_cols):
