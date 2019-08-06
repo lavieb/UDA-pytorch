@@ -103,8 +103,8 @@ def get_uda_train_test_loaders(train_set,
     train1_sup_ds = TransformedDataset(train1_set, train_transform_fn)
     test_ds = TransformedDataset(test_set, test_transform_fn)
 
-    original_transform = lambda dp: train_transform_fn(**dp)
-    augmentation_transform = lambda dp: unsup_transform_fn(**dp)
+    original_transform = train_transform_fn
+    augmentation_transform = unsup_transform_fn
     train1_unsup_ds = TransformedDataset(train1_set, UDATransform(original_transform, augmentation_transform))
     train2_unsup_ds = TransformedDataset(train2_set, UDATransform(original_transform, augmentation_transform))
 
