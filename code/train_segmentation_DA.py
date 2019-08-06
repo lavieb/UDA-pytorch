@@ -113,9 +113,9 @@ def run(train_config, logger, **kwargs):
     train1_unsup_loader_iter = cycle(train1_unsup_loader)
     train2_unsup_loader_iter = cycle(train2_unsup_loader)
 
-    output_transform_model = train_config.get('output_transform_model', lambda x: x)
+    output_transform_model = getattr(train_config, 'output_transform_model', lambda x: x)
 
-    lam = train_config['consistency_lambda']
+    lam = getattr(train_config, 'consistency_lambda')
 
     tsa = TrainingSignalAnnealing(num_steps=num_train_steps,
                                   min_threshold=getattr(train_config, 'TSA_proba_min'),
