@@ -100,12 +100,11 @@ def get_uda_train_test_loaders(train_set,
     else:
         train1_set, train2_set = (train_set, unsup_set)
 
-    train1_sup_ds = TransformedDataset(train1_set,
-                                       transform_fn=lambda dp: (train_transform_fn(dp['image']), dp['mask']))
-    test_ds = TransformedDataset(test_set, transform_fn=lambda dp: (test_transform_fn(dp['image']), dp['mask']))
+    train1_sup_ds = TransformedDataset(train1_set, transform_fn=lambda dp: train_transform_fn(**dp))
+    test_ds = TransformedDataset(test_set, transform_fn=lambda dp: test_transform_fn(**dp))
 
-    original_transform = lambda dp: train_transform_fn(dp['image'])
-    augmentation_transform = lambda dp: unsup_transform_fn(dp['image'])
+    original_transform = lambda dp: train_transform_fn(**dp)
+    augmentation_transform = lambda dp: unsup_transform_fn(**dp)
     train1_unsup_ds = TransformedDataset(train1_set, UDATransform(original_transform, augmentation_transform))
     train2_unsup_ds = TransformedDataset(train2_set, UDATransform(original_transform, augmentation_transform))
 
@@ -134,7 +133,8 @@ class TransformedDataset(Dataset):
 
     def __getitem__(self, index):
         dp = self.ds[index]
-        return self.transform_fn(dp)
+        dp = self.transform_fn(dp)
+        return dp['image'], dp['mask']
 
 
 class UDATransform:
@@ -151,8 +151,8 @@ class UDATransform:
             aug_dp = dp
         tdp1 = self.original_transform(dp)
         tdp2 = self.augmentation_transform(aug_dp)
-        back_transf = self.augmentation_transform.apply_backward
-        return tdp1, tdp2, back_transf
+        back_transf = tdp2['autotransf'].apply_backward
+        return tdp1['image'], tdp2['image'], back_transf
 
 
 def stratified_train_labelled_unlabelled_split(ds, num_labelled_samples, num_classes, seed=None):
