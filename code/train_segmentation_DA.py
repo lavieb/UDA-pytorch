@@ -27,7 +27,7 @@ from utils.tsa import TrainingSignalAnnealing
 def run(train_config, logger, **kwargs):
 
     logger = logging.getLogger('UDA')
-    if train_config.get('debug', False):
+    if getattr(train_config, 'debug', False):
         logger.setLevel(logging.DEBUG)
 
     # Set Polyaxon environment if needed
@@ -45,7 +45,7 @@ def run(train_config, logger, **kwargs):
         logger.warning('Logger Polyaxon : ' + str(e))
 
     # Path configuration
-    saves_dict = train_config.get('saves', {})
+    saves_dict = getattr(train_config, 'saves', {})
 
     save_dir = saves_dict.get('save_dir', '') if save_dir is None else save_dir
     log_dir = os.path.join(save_dir, saves_dict.get('log_dir', ''))
@@ -59,8 +59,8 @@ def run(train_config, logger, **kwargs):
         load_model_file = os.path.join(output_experiment_path, save_model_dir, load_model_file)
         load_optimizer_file = os.path.join(output_experiment_path, save_model_dir, load_optimizer_file)
 
-    num_epochs = train_config['num_epochs']
-    device = train_config.get('device', 'cpu')
+    num_epochs = getattr(train_config, 'num_epochs')
+    device = getattr(train_config, 'device', 'cpu')
 
     # Set magical acceleration
     if torch.cuda.is_available():
@@ -68,25 +68,25 @@ def run(train_config, logger, **kwargs):
     else:
         assert device == 'cpu', 'CUDA device selected but none is available'
 
-    train1_sup_loader = train_config['train1_sup_loader']
-    train1_unsup_loader = train_config['train1_unsup_loader']
-    train2_unsup_loader = train_config['train2_unsup_loader']
-    test_loader = train_config['test_loader']
+    train1_sup_loader = getattr(train_config, 'train1_sup_loader')
+    train1_unsup_loader = getattr(train_config, 'train1_unsup_loader')
+    train2_unsup_loader = getattr(train_config, 'train2_unsup_loader')
+    test_loader = getattr(train_config, 'test_loader')
 
     save_interval = saves_dict.get('save_interval', 0)
     n_saved = saves_dict.get('n_saved', 0)
 
-    val_interval = train_config.get('val_interval', 1)
-    pred_interval = train_config.get('pred_interval', 0)
+    val_interval = getattr(train_config, 'val_interval', 1)
+    pred_interval = getattr(train_config, 'pred_interval', 0)
 
-    model = train_config['model'].to(device)
+    model = getattr(train_config, 'model')
 
-    optimizer = train_config['optimizer']
+    optimizer = getattr(train_config, 'optimizer')
 
-    criterion = train_config['criterion'].to(device)
-    consistency_criterion = train_config['consistency_criterion'].to(device)
+    criterion = getattr(train_config, 'criterion')
+    consistency_criterion = getattr(train_config, 'consistency_criterion')
 
-    inference_fn = train_config.get('inference_fn', inference_standard)
+    inference_fn = getattr(train_config, 'inference_fn', inference_standard)
 
     # Load checkpoint
     load_params(model, optimizer=optimizer, model_file=load_model_file, optimizer_file=load_optimizer_file, device_name=device)
@@ -98,10 +98,10 @@ def run(train_config, logger, **kwargs):
     num_train_steps = le * num_epochs
     mlflow.log_param("num train steps", num_train_steps)
 
-    lr = train_config['learning_rate']
-    num_warmup_steps = train_config['num_warmup_steps']
+    lr = getattr(train_config, 'learning_rate')
+    num_warmup_steps = getattr(train_config, 'num_warmup_steps')
 
-    lr_scheduler = train_config['lr_scheduler']
+    lr_scheduler = getattr(train_config, 'lr_scheduler')
 
     if num_warmup_steps > 0:
         lr_scheduler = create_lr_scheduler_with_warmup(lr_scheduler,
@@ -118,10 +118,10 @@ def run(train_config, logger, **kwargs):
     lam = train_config['consistency_lambda']
 
     tsa = TrainingSignalAnnealing(num_steps=num_train_steps,
-                                  min_threshold=train_config['TSA_proba_min'],
-                                  max_threshold=train_config['TSA_proba_max'])
+                                  min_threshold=getattr(train_config, 'TSA_proba_min'),
+                                  max_threshold=getattr(train_config, 'TSA_proba_max'))
 
-    with_tsa = train_config.get('with_TSA', False)
+    with_tsa = getattr(train_config, 'with_TSA', False)
 
     cfg = {'tsa': tsa,
            'lambda': lam,
