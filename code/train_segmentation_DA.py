@@ -195,7 +195,7 @@ def run(train_config, logger, **kwargs):
     evaluator = Engine(inference_update_fn)
     train_evaluator = Engine(inference_update_fn)
 
-    for name, metric in metrics:
+    for name, metric in metrics.items():
         metric.attach(train_evaluator, name)
         metric.attach(evaluator, name)
 
