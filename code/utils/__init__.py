@@ -1,14 +1,3 @@
-import os
-import sys
-
-
-thisdir = os.path.dirname(__file__)
-rootdir = os.path.join(thisdir, '..')
-
-if rootdir not in sys.path:
-    sys.path.insert(0, rootdir)
-    os.chdir(rootdir)
-
 import numpy as np
 
 from torch.utils.data import Subset, Dataset, DataLoader
@@ -16,12 +5,12 @@ from torch.utils.data import Subset, Dataset, DataLoader
 from torchvision import models
 from torchvision.transforms import Compose, ToTensor, Normalize, Pad, RandomCrop, RandomHorizontalFlip
 
-from ..cifar.datasets import get_train_test_datasets as get_cifar_train_test_datasets
-from ..cifar import fastresnet
-from ..cifar import wideresnet
+from cifar.datasets import get_train_test_datasets as get_cifar_train_test_datasets
+from cifar import fastresnet
+from cifar import wideresnet
 
-from ..utils import autoaugment
-from ..utils.transforms import RandomErasing
+from utils import autoaugment
+from utils.transforms import RandomErasing
 
 
 def set_seed(seed):
