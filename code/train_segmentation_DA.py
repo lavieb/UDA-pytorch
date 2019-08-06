@@ -188,6 +188,7 @@ def run(train_config, logger, **kwargs):
 
     inference_update_fn = partial(inference_update_function,
                                   model=model,
+                                  cfg=cfg,
                                   output_transform_model=output_transform_model,
                                   inference_fn=inference_fn)
 
