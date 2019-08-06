@@ -137,6 +137,24 @@ class TransformedDataset(Dataset):
         return dp['image'], dp['mask']
 
 
+class TransformedDatasetUDA(Dataset):
+
+    def __init__(self, ds, orig_transform_fn, augm_transform_fn):
+        assert isinstance(ds, Dataset)
+        assert callable(orig_transform_fn)
+        assert callable(augm_transform_fn)
+        self.ds = ds
+        self.transform_fn = UDATransform(orig_transform_fn, augm_transform_fn)
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, index):
+        dp = self.ds[index]
+        dp = self.transform_fn(dp)
+        return dp
+
+
 class UDATransform:
 
     def __init__(self, original_transform, augmentation_transform, copy=False):
