@@ -1,3 +1,0 @@
-[submodule "code/utils/third_party/pytorch_auto_augment"]
-	path = code/utils/third_party/pytorch_auto_augment
-	url = https://github.com/4uiiurz1/pytorch-auto-augment

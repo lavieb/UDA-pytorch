@@ -3,9 +3,10 @@ import numbers
 import warnings
 import random
 import math
+import numpy as np
 
 import torch
-import torchvision.transforms.functional as F
+from PIL import Image
 
 from albumentations import BasicTransform
 
@@ -138,6 +139,28 @@ class ToTensor(BasicTransform):
         return torch.from_numpy(mask)
 
 
+class ToTensor2(BasicTransform):
+
+    def __init__(self):
+        super(ToTensor2, self).__init__(always_apply=True)
+
+    @property
+    def targets(self):
+        return {
+            'image': self.apply,
+            'mask': self.apply_to_mask
+        }
+
+    def apply(self, img, **params):
+        max_img = np.amax(img, axis=(1, 2), keepdims=True)
+        min_img = np.amin(img, axis=(1, 2), keepdims=True)
+        img = (max_img - img) / (max_img - min_img)
+        return torch.from_numpy(img.transpose(2, 0, 1))
+
+    def apply_to_mask(self, mask, **params):
+        return torch.from_numpy(mask)
+
+
 class ToPILImage(BasicTransform):
 
     def __init__(self):
@@ -151,7 +174,7 @@ class ToPILImage(BasicTransform):
         }
 
     def apply(self, img, **params):
-        return F.to_pil_image(img)
+        return Image.fromarray((img * 255 / 2 + 128).astype(np.uint8))
 
     def apply_to_mask(self, mask, **params):
         return mask
