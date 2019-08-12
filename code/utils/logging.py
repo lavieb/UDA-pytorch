@@ -56,7 +56,7 @@ def mlflow_batch_metrics_logging(engine, tag, trainer):
             pass
 
 
-def mlflow_val_metrics_logging(engine, tag, trainer, metrics):
+def mlflow_val_metrics_logging(engine, tag, trainer):
     step = trainer.state.epoch
     for name, value in engine.state.metrics.items():
         try:

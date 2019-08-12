@@ -255,13 +255,13 @@ def run(train_config, logger, **kwargs):
                             save_prediction_dir,
                             train_output['x'],
                             torch.argmax(train_output['y_pred'][0, :, :, :], dim=0),
-                            y=torch.argmax(train_output['y'][0, :, :, :], dim=0))
+                            y=train_output['y'][0, :, :])
 
             save_prediction('test_{}_{}'.format(iteration, epoch),
                             save_prediction_dir,
                             test_output['x'],
                             torch.argmax(test_output['y_pred'][0, :, :, :], dim=0),
-                            y=torch.argmax(test_output['y'][0, :, :, :], dim=0))
+                            y=test_output['y'][0, :, :])
 
     trainer.add_event_handler(Events.EPOCH_STARTED, run_validation, validation_interval=val_interval)
     trainer.add_event_handler(Events.COMPLETED, run_validation, validation_interval=1)
@@ -311,8 +311,8 @@ def run(train_config, logger, **kwargs):
                           event_name=Events.COMPLETED)
 
     trainer.add_event_handler(Events.ITERATION_COMPLETED, mlflow_batch_metrics_logging, "train", trainer)
-    train_evaluator.add_event_handler(Events.COMPLETED, mlflow_val_metrics_logging, "train", trainer, metrics)
-    evaluator.add_event_handler(Events.COMPLETED, mlflow_val_metrics_logging, "test", trainer, metrics)
+    train_evaluator.add_event_handler(Events.COMPLETED, mlflow_val_metrics_logging, "train", trainer)
+    evaluator.add_event_handler(Events.COMPLETED, mlflow_val_metrics_logging, "test", trainer)
 
     data_steps = list(range(len(train1_sup_loader)))
 
