@@ -68,6 +68,12 @@ def run(train_config, logger, **kwargs):
     else:
         assert device == 'cpu', 'CUDA device selected but none is available'
 
+    # Set half precision if required
+    use_fp_16 = getattr(train_config, 'use_fp_16', False)
+    if use_fp_16:
+        assert 'cuda' in device
+        assert torch.backends.cudnn.enabled, "NVIDIA/Apex:Amp requires cudnn backend to be enabled."
+
     train1_sup_loader = getattr(train_config, 'train1_sup_loader')
     train1_unsup_loader = getattr(train_config, 'train1_unsup_loader')
     train2_unsup_loader = getattr(train_config, 'train2_unsup_loader')
@@ -79,12 +85,25 @@ def run(train_config, logger, **kwargs):
     val_interval = getattr(train_config, 'val_interval', 1)
     pred_interval = getattr(train_config, 'pred_interval', 0)
 
-    model = getattr(train_config, 'model')
+    model = getattr(train_config, 'model').to(device)
 
     optimizer = getattr(train_config, 'optimizer')
 
-    criterion = getattr(train_config, 'criterion')
-    consistency_criterion = getattr(train_config, 'consistency_criterion')
+    criterion = getattr(train_config, 'criterion').to(device)
+    consistency_criterion = getattr(train_config, 'consistency_criterion').to(device)
+
+    # AMP initialization for half precision
+    if use_fp_16:
+        assert 'cuda' in device
+        assert torch.backends.cudnn.enabled, "NVIDIA/Apex:Amp requires cudnn backend to be enabled."
+        try:
+            from apex import amp
+        except:
+            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
+        # Initialize amp
+        model, optimizer = amp.initialize(model,
+                                          optimizer,
+                                          opt_level="O2")
 
     inference_fn = getattr(train_config, 'inference_fn', inference_standard)
 
@@ -285,4 +304,7 @@ def run(train_config, logger, **kwargs):
     evaluator.add_event_handler(Events.COMPLETED, mlflow_val_metrics_logging, "test", trainer, metrics)
 
     data_steps = list(range(len(train1_sup_loader)))
+
+    logger.debug('Start training')
     trainer.run(data_steps, max_epochs=num_epochs)
+    logger.debug('Finished training')

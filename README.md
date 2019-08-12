@@ -15,6 +15,8 @@ All experiments are run using [`mlflow`](https://github.com/mlflow/mlflow), plea
 pip install --upgrade mlflow
 ```
 
+In order to use half precision (float16) you will need to install [NVIDIA apex](https://github.com/NVIDIA/apex).
+
 ## Experiments
 
 ### Start MLFlow UI server

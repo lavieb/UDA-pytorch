@@ -3,6 +3,11 @@
 import torch
 from ignite.utils import convert_tensor
 
+try:
+    from apex import amp
+except:
+    pass
+
 
 def prepare_batch(batch, device, non_blocking):
     x, y = batch
@@ -74,7 +79,8 @@ def train_update_function(engine,
                           train1_unsup_loader_iter,
                           train1_sup_loader_iter,
                           train2_unsup_loader_iter,
-                          output_transform_model=lambda x: x):
+                          output_transform_model=lambda x: x,
+                          use_fp_16=False):
 
     model.train()
     optimizer.zero_grad()
@@ -101,8 +107,12 @@ def train_update_function(engine,
                                                         output_transform_model=output_transform_model)
 
     final_loss = train1_sup_loss + cfg['lambda'] * (train1_unsup_loss + train2_loss)
-    final_loss.backward()
 
+    if use_fp_16:
+        with amp.scale_loss(final_loss, optimizer) as scaled_loss:
+            scaled_loss.backward()
+    else:
+        final_loss.backward()
     optimizer.step()
 
     return {

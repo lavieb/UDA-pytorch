@@ -75,6 +75,8 @@ test_workers = 10
 
 pin_memory = True
 
+use_fp_16 = False
+
 train1_sup_loader, train1_unsup_loader, train2_unsup_loader, test_loader = \
     get_uda_train_test_loaders(train_set=train_set,
                                test_set=test_set,
