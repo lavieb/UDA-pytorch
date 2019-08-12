@@ -26,7 +26,7 @@ from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_loggi
 from utils.tsa import TrainingSignalAnnealing
 
 import sys
-sys.path.append("..")
+sys.path.append(".")
 
 
 def run(train_config, logger, **kwargs):
