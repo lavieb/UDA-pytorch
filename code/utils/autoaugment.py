@@ -7,7 +7,7 @@ import numpy as np
 import random
 import torch
 
-from utils.third_party.pytorch_auto_augment.auto_augment import operations
+from third_party.pytorch_auto_augment.auto_augment import operations
 
 
 class AbstractPolicy(object):
