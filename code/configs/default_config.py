@@ -5,7 +5,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from ..utils import get_uda_train_test_loaders
 from ..utils.autoaugment import ImageNetBackwardPolicy
-from ..utils.transforms import ToTensor, ToPILImage, ToTensor2
+from ..utils.transforms import ToTensor, ToPILImage
 
 # Transformations
 
@@ -33,9 +33,8 @@ def test_transform_fn(dp):
 def unsup_transform_fn(dp):
     autotransf = ImageNetBackwardPolicy()
 
-    albu_unsup_transform = albu.Compose([ToPILImage(),
-                                         autotransf,
-                                         ToTensor2()])
+    albu_unsup_transform = albu.Compose([autotransf,
+                                         ToTensor()])
     albu_unsup_transform_fn = lambda x: albu_unsup_transform(**x)
 
     dp = albu_unsup_transform_fn(dp)
