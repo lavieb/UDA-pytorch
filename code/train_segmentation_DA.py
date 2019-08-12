@@ -1,5 +1,6 @@
 """This file is a variation of the UDA applied for segmentation task"""
 
+import context
 from functools import partial
 import logging
 import os
@@ -24,9 +25,6 @@ from polyaxon_client.exceptions import PolyaxonClientException
 from utils.uda_utils import cycle, train_update_function, load_params, inference_update_function, inference_standard
 from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_logging, log_tsa, log_learning_rate, save_prediction, create_save_folders
 from utils.tsa import TrainingSignalAnnealing
-
-import sys
-sys.path.append(".")
 
 
 def run(train_config, logger, **kwargs):
