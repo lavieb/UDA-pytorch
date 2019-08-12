@@ -179,29 +179,28 @@ class ImageNetBackwardPolicy(AbstractBackwardPolicy):
     def _get_policies(fillcolor):
 
         policies = [
-            SubPolicy(0.4, "posterize", 8, 0.6, "rotate90", 9, fillcolor),
-            SubPolicy(0.6, "solarize", 5, 0.6, "autocontrast", 5, fillcolor),
-            SubPolicy(0.8, "equalize", 8, 0.6, "equalize", 3, fillcolor),
-            SubPolicy(0.6, "posterize", 7, 0.6, "posterize", 6, fillcolor),
-            SubPolicy(0.4, "equalize", 7, 0.2, "solarize", 4, fillcolor),
+            # SubBackwardPolicy(0.4, "posterize", 8, 0.6, "rotate90", 9),
+            SubBackwardPolicy(0.6, "solarize", 5, 0.6, "autocontrast", 5),
+            SubBackwardPolicy(0.8, "equalize", 8, 0.6, "equalize", 3),
+            SubBackwardPolicy(0.6, "posterize", 7, 0.6, "posterize", 6),
+            SubBackwardPolicy(0.4, "equalize", 7, 0.2, "solarize", 4),
 
-            SubPolicy(0.4, "equalize", 4, 0.8, "rotate90", 8, fillcolor),
-            SubPolicy(0.6, "solarize", 3, 0.6, "equalize", 7, fillcolor),
-            SubPolicy(0.8, "posterize", 5, 1.0, "equalize", 2, fillcolor),
-            SubPolicy(0.2, "rotate90", 3, 0.6, "solarize", 8, fillcolor),
-            SubPolicy(0.6, "equalize", 8, 0.4, "posterize", 6, fillcolor),
+            # SubBackwardPolicy(0.4, "equalize", 4, 0.8, "rotate90", 8),
+            SubBackwardPolicy(0.6, "solarize", 3, 0.6, "equalize", 7),
+            SubBackwardPolicy(0.8, "posterize", 5, 1.0, "equalize", 2),
+            # SubBackwardPolicy(0.2, "rotate90", 3, 0.6, "solarize", 8),
+            SubBackwardPolicy(0.6, "equalize", 8, 0.4, "posterize", 6),
 
-            SubPolicy(0.8, "rotate90", 8, 0.4, "color", 0, fillcolor),
-            SubPolicy(0.4, "rotate90", 9, 0.6, "equalize", 2, fillcolor),
-            SubPolicy(0.0, "equalize", 7, 0.8, "equalize", 8, fillcolor),
-            SubPolicy(0.6, "invert", 4, 1.0, "equalize", 8, fillcolor),
-            SubPolicy(0.6, "color", 4, 1.0, "contrast", 8, fillcolor),
+            # SubBackwardPolicy(0.8, "rotate90", 8, 0.4, "color", 0),
+            # SubBackwardPolicy(0.4, "rotate90", 9, 0.6, "equalize", 2),
+            SubBackwardPolicy(0.0, "equalize", 7, 0.8, "equalize", 8),
+            SubBackwardPolicy(0.6, "invert", 4, 1.0, "equalize", 8),
+            SubBackwardPolicy(0.6, "color", 4, 1.0, "contrast", 8),
 
-            SubPolicy(0.8, "rotate90", 8, 1.0, "color", 2, fillcolor),
-            SubPolicy(0.8, "color", 8, 0.8, "solarize", 7, fillcolor),
-            SubPolicy(0.4, "sharpness", 7, 0.6, "invert", 8, fillcolor),
-            SubPolicy(0.6, "shearX", 5, 1.0, "equalize", 9, fillcolor),
-            SubPolicy(0.4, "color", 0, 0.6, "equalize", 3, fillcolor),
+            # SubBackwardolicy(0.8, "rotate90", 8, 1.0, "color", 2),
+            SubBackwardPolicy(0.8, "color", 8, 0.8, "solarize", 7),
+            SubBackwardPolicy(0.4, "sharpness", 7, 0.6, "invert", 8),
+            SubBackwardPolicy(0.4, "color", 0, 0.6, "equalize", 3),
 
         ]
 
