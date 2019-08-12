@@ -45,7 +45,7 @@ class AbstractBackwardPolicy(BasicTransform):
     """ Randomly choose one of the best Sub-policies on a specific dataset for a couple image and mask.
     """
     def __init__(self, fillcolor=(128, 128, 128)):
-        super(BasicTransform, self).__init__()
+        super(AbstractBackwardPolicy, self).__init__(always_apply=True)
         self.policies = self._get_policies(fillcolor)
         self.backward_policies = []
 
@@ -197,11 +197,10 @@ class ImageNetBackwardPolicy(AbstractBackwardPolicy):
             SubBackwardPolicy(0.6, "invert", 4, 1.0, "equalize", 8),
             SubBackwardPolicy(0.6, "color", 4, 1.0, "contrast", 8),
 
-            # SubBackwardolicy(0.8, "rotate90", 8, 1.0, "color", 2),
+            # SubBackwardPolicy(0.8, "rotate90", 8, 1.0, "color", 2),
             SubBackwardPolicy(0.8, "color", 8, 0.8, "solarize", 7),
             SubBackwardPolicy(0.4, "sharpness", 7, 0.6, "invert", 8),
             SubBackwardPolicy(0.4, "color", 0, 0.6, "equalize", 3),
-
         ]
 
         return policies
