@@ -1,6 +1,5 @@
 """This file is a variation of the UDA applied for segmentation task"""
 
-import context
 from functools import partial
 import logging
 import os
