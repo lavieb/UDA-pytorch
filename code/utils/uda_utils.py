@@ -123,30 +123,6 @@ def train_update_function(engine,
     }
 
 
-def inference_update_function(engine,
-                              batch,
-                              model,
-                              cfg,
-                              output_transform_model=lambda x: x,
-                              inference_fn=None):
-    model.eval()
-    with torch.no_grad():
-        x, y = batch
-        x = convert_tensor(x, device=cfg['device'], non_blocking=True)
-        y = convert_tensor(y, device=cfg['device'], non_blocking=True)
-
-        if inference_fn is not None:
-            # Custom inference function
-            y_pred = inference_fn(x)
-        else:
-            # Default inference function (forward the input through the model without further processing)
-            y_pred = output_transform_model(model(x))
-
-        return {'x': x[0, :, :, :],
-                'y_pred': y_pred,
-                'y': y}
-
-
 def inference_standard(im,
                        model,
                        output_transform_model=lambda x: x,
@@ -164,6 +140,25 @@ def inference_standard(im,
     prediction = output_transform_model(model(im))
 
     return prediction
+
+
+def inference_update_function(engine,
+                              batch,
+                              model,
+                              cfg,
+                              output_transform_model=lambda x: x,
+                              inference_fn=inference_standard):
+    model.eval()
+    with torch.no_grad():
+        x, y = batch
+        x = convert_tensor(x, device=cfg['device'], non_blocking=True)
+        y = convert_tensor(y, device=cfg['device'], non_blocking=True)
+
+        y_pred = inference_fn(x, model, output_transform_model=output_transform_model)
+
+        return {'x': x[0, :, :, :],
+                'y_pred': y_pred,
+                'y': y}
 
 
 def load_params(model,

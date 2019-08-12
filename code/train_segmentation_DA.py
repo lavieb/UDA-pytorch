@@ -108,8 +108,6 @@ def run(train_config, logger, **kwargs):
                                           optimizer,
                                           opt_level="O2")
 
-    inference_fn = getattr(train_config, 'inference_fn', inference_standard)
-
     # Load checkpoint
     load_params(model, optimizer=optimizer, model_file=load_model_file, optimizer_file=load_optimizer_file, device_name=device)
 
@@ -136,6 +134,8 @@ def run(train_config, logger, **kwargs):
     train2_unsup_loader_iter = cycle(train2_unsup_loader)
 
     output_transform_model = getattr(train_config, 'output_transform_model', lambda x: x)
+
+    inference_fn = getattr(train_config, 'inference_fn', inference_standard)
 
     lam = getattr(train_config, 'consistency_lambda')
 
