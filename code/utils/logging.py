@@ -184,3 +184,26 @@ def write_prediction_on_image2(mask_predicted, im, filepath):
             cvs.paste(tiles[i_row][i_col], (px, py))
 
     cvs.save(filepath)
+
+
+def create_save_folders(save_dir, saves_dict):
+
+    log_dir = os.path.join(save_dir, saves_dict.get('log_dir', ''))
+    save_model_dir = os.path.join(save_dir, saves_dict.get('model_dir', ''))
+    save_prediction_dir = os.path.join(save_dir, saves_dict.get('prediction_dir', ''))
+    save_config_dir = os.path.join(save_dir, saves_dict.get('config_dir', ''))
+
+    if save_dir and not os.path.exists(save_dir):
+        os.mkdir(save_dir)
+
+    if log_dir and not os.path.exists(log_dir):
+        os.mkdir(log_dir)
+
+    if save_model_dir and not os.path.exists(save_model_dir):
+        os.mkdir(save_model_dir)
+
+    if save_prediction_dir and not os.path.exists(save_prediction_dir):
+        os.mkdir(save_prediction_dir)
+
+    if save_config_dir and not os.path.exists(save_config_dir):
+        os.mkdir(save_config_dir)
