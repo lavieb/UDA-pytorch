@@ -7,6 +7,8 @@ import numpy as np
 import random
 import torch
 
+from ..third_party.pytorch_auto_augment.auto_augment import operations
+
 
 class AbstractPolicy(object):
     """ Randomly choose one of the best Sub-policies on a specific dataset.
@@ -225,38 +227,50 @@ class SubPolicy(object):
             "invert": [0] * 10
         }
 
-        # from https://stackoverflow.com/questions/5252170/specify-image-filling-color-when-rotating-in-python-with-pil-and-setting-expand
-        def rotate_with_fill(img, magnitude):
-            rot = img.convert("RGBA").rotate(magnitude)
-            return Image.composite(rot, Image.new("RGBA", rot.size, (128,) * 4), rot).convert(img.mode)
+        # func = {
+        #     "shearX": lambda img, magnitude: img.transform(
+        #         img.size, Image.AFFINE, (1, magnitude * random.choice([-1, 1]), 0, 0, 1, 0),
+        #         Image.BICUBIC, fillcolor=fillcolor),
+        #     "shearY": lambda img, magnitude: img.transform(
+        #         img.size, Image.AFFINE, (1, 0, 0, magnitude * random.choice([-1, 1]), 1, 0),
+        #         Image.BICUBIC, fillcolor=fillcolor),
+        #     "translateX": lambda img, magnitude: img.transform(
+        #         img.size, Image.AFFINE, (1, 0, magnitude * img.size[0] * random.choice([-1, 1]), 0, 1, 0),
+        #         fillcolor=fillcolor),
+        #     "translateY": lambda img, magnitude: img.transform(
+        #         img.size, Image.AFFINE, (1, 0, 0, 0, 1, magnitude * img.size[1] * random.choice([-1, 1])),
+        #         fillcolor=fillcolor),
+        #     "rotate": lambda img, magnitude: rotate_with_fill(img, magnitude),
+        #     # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
+        #     "color": lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])),
+        #     "posterize": lambda img, magnitude: ImageOps.posterize(img, magnitude),
+        #     "solarize": lambda img, magnitude: ImageOps.solarize(img, magnitude),
+        #     "contrast": lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
+        #         1 + magnitude * random.choice([-1, 1])),
+        #     "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
+        #         1 + magnitude * random.choice([-1, 1])),
+        #     "brightness": lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
+        #         1 + magnitude * random.choice([-1, 1])),
+        #     "autocontrast": lambda img, magnitude: ImageOps.autocontrast(img),
+        #     "equalize": lambda img, magnitude: ImageOps.equalize(img),
+        #     "invert": lambda img, magnitude: ImageOps.invert(img)
+        # }
 
         func = {
-            "shearX": lambda img, magnitude: img.transform(
-                img.size, Image.AFFINE, (1, magnitude * random.choice([-1, 1]), 0, 0, 1, 0),
-                Image.BICUBIC, fillcolor=fillcolor),
-            "shearY": lambda img, magnitude: img.transform(
-                img.size, Image.AFFINE, (1, 0, 0, magnitude * random.choice([-1, 1]), 1, 0),
-                Image.BICUBIC, fillcolor=fillcolor),
-            "translateX": lambda img, magnitude: img.transform(
-                img.size, Image.AFFINE, (1, 0, magnitude * img.size[0] * random.choice([-1, 1]), 0, 1, 0),
-                fillcolor=fillcolor),
-            "translateY": lambda img, magnitude: img.transform(
-                img.size, Image.AFFINE, (1, 0, 0, 0, 1, magnitude * img.size[1] * random.choice([-1, 1])),
-                fillcolor=fillcolor),
-            "rotate": lambda img, magnitude: rotate_with_fill(img, magnitude),
-            # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
-            "color": lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])),
-            "posterize": lambda img, magnitude: ImageOps.posterize(img, magnitude),
-            "solarize": lambda img, magnitude: ImageOps.solarize(img, magnitude),
-            "contrast": lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
-                1 + magnitude * random.choice([-1, 1])),
-            "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
-                1 + magnitude * random.choice([-1, 1])),
-            "brightness": lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
-                1 + magnitude * random.choice([-1, 1])),
-            "autocontrast": lambda img, magnitude: ImageOps.autocontrast(img),
-            "equalize": lambda img, magnitude: ImageOps.equalize(img),
-            "invert": lambda img, magnitude: ImageOps.invert(img)
+            "shearX": operations['ShearX'],
+            "shearY": operations['ShearY'],
+            "translateX": operations['TranslateX'],
+            "translateY": operations['TranslateY'],
+            "rotate": operations['Rotate'],
+            "color": operations['Color'],
+            "posterize": operations['Posterize'],
+            "solarize": operations['Solarize'],
+            "contrast": operations['Contrast'],
+            "sharpness": operations['Sharpness'],
+            "brightness": operations['Brightness'],
+            "autocontrast": operations['AutoContrast'],
+            "equalize": operations['Equalize'],
+            "invert": operations['Invert']
         }
 
         self.p1 = p1
@@ -293,22 +307,37 @@ class SubBackwardPolicy(object):
             "invert": [0] * 10
         }
 
+        # func = {
+        #     "rotate90": [lambda img, magnitude: np.rot90(img, k=magnitude, axes=(0, 1)),
+        #                  lambda mask, magnitude: torch.rot90(mask, k=magnitude, dims=(1, 2))],
+        #     # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
+        #     "color": [lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])), None],
+        #     "posterize": [lambda img, magnitude: ImageOps.posterize(img, magnitude), None],
+        #     "solarize": [lambda img, magnitude: ImageOps.solarize(img, magnitude), None],
+        #     "contrast": [lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
+        #         1 + magnitude * random.choice([-1, 1])), None],
+        #     "sharpness": [lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
+        #         1 + magnitude * random.choice([-1, 1])), None],
+        #     "brightness": [lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
+        #         1 + magnitude * random.choice([-1, 1])), None],
+        #     "autocontrast": [lambda img, magnitude: ImageOps.autocontrast(img), None],
+        #     "equalize": [lambda img, magnitude: ImageOps.equalize(img), None],
+        #     "invert": [lambda img, magnitude: ImageOps.invert(img), None],
+        # }
+
         func = {
             "rotate90": [lambda img, magnitude: np.rot90(img, k=magnitude, axes=(0, 1)),
                          lambda mask, magnitude: torch.rot90(mask, k=magnitude, dims=(1, 2))],
             # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
-            "color": [lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])), None],
-            "posterize": [lambda img, magnitude: ImageOps.posterize(img, magnitude), None],
-            "solarize": [lambda img, magnitude: ImageOps.solarize(img, magnitude), None],
-            "contrast": [lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
-                1 + magnitude * random.choice([-1, 1])), None],
-            "sharpness": [lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
-                1 + magnitude * random.choice([-1, 1])), None],
-            "brightness": [lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
-                1 + magnitude * random.choice([-1, 1])), None],
-            "autocontrast": [lambda img, magnitude: ImageOps.autocontrast(img), None],
-            "equalize": [lambda img, magnitude: ImageOps.equalize(img), None],
-            "invert": [lambda img, magnitude: ImageOps.invert(img), None],
+            "color": [operations['Color'], None],
+            "posterize": [operations['Posterize'], None],
+            "solarize": [operations['Solarize'], None],
+            "contrast": [operations['Contrast'], None],
+            "sharpness": [operations['Sharpness'], None],
+            "brightness": [operations['Brightness'], None],
+            "autocontrast": [operations['AutoContrast'], None],
+            "equalize": [operations['Equalize'], None],
+            "invert": [operations['Invert'], None],
         }
 
         self.p1 = p1

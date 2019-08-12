@@ -33,8 +33,7 @@ def test_transform_fn(dp):
 def unsup_transform_fn(dp):
     autotransf = ImageNetBackwardPolicy()
 
-    albu_unsup_transform = albu.Compose([ToPILImage(),
-                                         autotransf,
+    albu_unsup_transform = albu.Compose([autotransf,
                                          ToTensor()])
     albu_unsup_transform_fn = lambda x: albu_unsup_transform(**x)
 
