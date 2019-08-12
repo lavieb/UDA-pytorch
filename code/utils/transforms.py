@@ -5,6 +5,7 @@ import random
 import math
 
 import torch
+import torchvision.transforms.functional as F
 
 from albumentations import BasicTransform
 
@@ -137,3 +138,20 @@ class ToTensor(BasicTransform):
         return torch.from_numpy(mask)
 
 
+class ToPILImage(BasicTransform):
+
+    def __init__(self):
+        super(ToPILImage, self).__init__(always_apply=True)
+
+    @property
+    def targets(self):
+        return {
+            'image': self.apply,
+            'mask': self.apply_to_mask
+        }
+
+    def apply(self, img, **params):
+        return F.to_pil_image(img)
+
+    def apply_to_mask(self, mask, **params):
+        return mask

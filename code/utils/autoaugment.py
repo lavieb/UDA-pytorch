@@ -273,7 +273,11 @@ class SubPolicy(object):
 
 
 class SubBackwardPolicy(object):
-    """Subpolicy with a backward relationship to revert the action (useful for segmentation)"""
+    """Subpolicy with a backward relationship to revert the action (useful for segmentation).
+
+    Two operations must be specified:
+    - an operation applied to the image of the transformed branch
+    - an operation on the mask of the not transformed branch"""
 
     def __init__(self, p1, operation1, magnitude_idx1, p2, operation2, magnitude_idx2):
         ranges = {
@@ -291,7 +295,7 @@ class SubBackwardPolicy(object):
 
         func = {
             "rotate90": [lambda img, magnitude: np.rot90(img, k=magnitude, axes=(0, 1)),
-                         lambda mask, magnitude: torch.rot90(mask, k=magnitude, dims=(2, 1))],
+                         lambda mask, magnitude: torch.rot90(mask, k=magnitude, dims=(1, 2))],
             # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
             "color": [lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])), None],
             "posterize": [lambda img, magnitude: ImageOps.posterize(img, magnitude), None],
@@ -321,8 +325,8 @@ class SubBackwardPolicy(object):
     def __call__(self, img):
         if random.random() < self.p1:
             img = self.operation1(img, self.magnitude1)
-            self.applied_backward.insert(0, self.backward_operation1)
+            self.applied_backward.append(self.backward_operation1)
         if random.random() < self.p2:
             img = self.operation2(img, self.magnitude2)
-            self.applied_backward.insert(0, self.backward_operation2)
+            self.applied_backward.append(self.backward_operation2)
         return img
