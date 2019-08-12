@@ -25,6 +25,9 @@ from utils.uda_utils import cycle, train_update_function, load_params, inference
 from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_logging, log_tsa, log_learning_rate, save_prediction, create_save_folders
 from utils.tsa import TrainingSignalAnnealing
 
+import sys
+sys.path.append("..")
+
 
 def run(train_config, logger, **kwargs):
 

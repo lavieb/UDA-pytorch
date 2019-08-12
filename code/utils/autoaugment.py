@@ -7,7 +7,7 @@ import numpy as np
 import random
 import torch
 
-from ..third_party.pytorch_auto_augment.auto_augment import operations
+from code.third_party.pytorch_auto_augment.auto_augment import operations
 
 
 class AbstractPolicy(object):
@@ -281,8 +281,10 @@ class SubPolicy(object):
         self.magnitude2 = ranges[operation2][magnitude_idx2]
 
     def __call__(self, img):
-        if random.random() < self.p1: img = self.operation1(img, self.magnitude1)
-        if random.random() < self.p2: img = self.operation2(img, self.magnitude2)
+        if random.random() < self.p1:
+            img = self.operation1(img, self.magnitude1)
+        if random.random() < self.p2:
+            img = self.operation2(img, self.magnitude2)
         return img
 
 
