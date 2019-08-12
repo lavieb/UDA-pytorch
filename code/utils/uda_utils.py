@@ -53,7 +53,7 @@ def compute_unsupervised_loss(engine,
                               cfg,
                               output_transform_model=lambda x: x):
 
-    unsup_dp, unsup_aug_dp, back_transf = batch
+    unsup_dp, unsup_aug_dp = batch
     unsup_x = convert_tensor(unsup_dp, device=cfg['device'], non_blocking=True)
     unsup_aug_x = convert_tensor(unsup_aug_dp, device=cfg['device'], non_blocking=True)
 
@@ -63,8 +63,6 @@ def compute_unsupervised_loss(engine,
 
     unsup_aug_y_pred = output_transform_model(model(unsup_aug_x))
     unsup_aug_y_probas = torch.log_softmax(unsup_aug_y_pred, dim=-1)
-
-    unsup_orig_y_probas = back_transf(unsup_orig_y_probas)
 
     consistency_loss = cfg['consistency_criterion'](unsup_aug_y_probas, unsup_orig_y_probas)
 

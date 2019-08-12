@@ -1,14 +1,13 @@
 # Code taken from https://github.com/DeepVoltaire/AutoAugment
-# Code taken from https://github.com/4uiiurz1/pytorch-auto-augment
 
 from abc import abstractstaticmethod
 from PIL import Image, ImageEnhance, ImageOps
 from albumentations import BasicTransform
 import numpy as np
 import random
-import torch
 
 from PIL import Image
+
 
 class AbstractPolicy(object):
     """ Randomly choose one of the best Sub-policies on a specific dataset.
@@ -72,18 +71,10 @@ class AbstractBackwardPolicy(BasicTransform):
         img = Image.fromarray((img * 255 / 2 + 128).astype(np.uint8))
         img = policy(img)
         img = np.array(img) / 255 - 128
-        self.backward_policies = policy.applied_backward + self.policies
 
         return img
 
     def apply_to_mask(self, mask, **params):
-        return mask
-
-    def apply_backward(self, mask, **params):
-        for op in self.backward_policies:
-            if op is not None:
-                mask = op(mask)
-
         return mask
 
     def __repr__(self):
@@ -229,50 +220,33 @@ class SubPolicy(object):
             "invert": [0] * 10
         }
 
-        # func = {
-        #     "shearX": lambda img, magnitude: img.transform(
-        #         img.size, Image.AFFINE, (1, magnitude * random.choice([-1, 1]), 0, 0, 1, 0),
-        #         Image.BICUBIC, fillcolor=fillcolor),
-        #     "shearY": lambda img, magnitude: img.transform(
-        #         img.size, Image.AFFINE, (1, 0, 0, magnitude * random.choice([-1, 1]), 1, 0),
-        #         Image.BICUBIC, fillcolor=fillcolor),
-        #     "translateX": lambda img, magnitude: img.transform(
-        #         img.size, Image.AFFINE, (1, 0, magnitude * img.size[0] * random.choice([-1, 1]), 0, 1, 0),
-        #         fillcolor=fillcolor),
-        #     "translateY": lambda img, magnitude: img.transform(
-        #         img.size, Image.AFFINE, (1, 0, 0, 0, 1, magnitude * img.size[1] * random.choice([-1, 1])),
-        #         fillcolor=fillcolor),
-        #     "rotate": lambda img, magnitude: rotate_with_fill(img, magnitude),
-        #     # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
-        #     "color": lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])),
-        #     "posterize": lambda img, magnitude: ImageOps.posterize(img, magnitude),
-        #     "solarize": lambda img, magnitude: ImageOps.solarize(img, magnitude),
-        #     "contrast": lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
-        #         1 + magnitude * random.choice([-1, 1])),
-        #     "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
-        #         1 + magnitude * random.choice([-1, 1])),
-        #     "brightness": lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
-        #         1 + magnitude * random.choice([-1, 1])),
-        #     "autocontrast": lambda img, magnitude: ImageOps.autocontrast(img),
-        #     "equalize": lambda img, magnitude: ImageOps.equalize(img),
-        #     "invert": lambda img, magnitude: ImageOps.invert(img)
-        # }
-
         func = {
-            "shearX": operations['ShearX'],
-            "shearY": operations['ShearY'],
-            "translateX": operations['TranslateX'],
-            "translateY": operations['TranslateY'],
-            "rotate": operations['Rotate'],
-            "color": operations['Color'],
-            "posterize": operations['Posterize'],
-            "solarize": operations['Solarize'],
-            "contrast": operations['Contrast'],
-            "sharpness": operations['Sharpness'],
-            "brightness": operations['Brightness'],
-            "autocontrast": operations['AutoContrast'],
-            "equalize": operations['Equalize'],
-            "invert": operations['Invert']
+            "shearX": lambda img, magnitude: img.transform(
+                img.size, Image.AFFINE, (1, magnitude * random.choice([-1, 1]), 0, 0, 1, 0),
+                Image.BICUBIC, fillcolor=fillcolor),
+            "shearY": lambda img, magnitude: img.transform(
+                img.size, Image.AFFINE, (1, 0, 0, magnitude * random.choice([-1, 1]), 1, 0),
+                Image.BICUBIC, fillcolor=fillcolor),
+            "translateX": lambda img, magnitude: img.transform(
+                img.size, Image.AFFINE, (1, 0, magnitude * img.size[0] * random.choice([-1, 1]), 0, 1, 0),
+                fillcolor=fillcolor),
+            "translateY": lambda img, magnitude: img.transform(
+                img.size, Image.AFFINE, (1, 0, 0, 0, 1, magnitude * img.size[1] * random.choice([-1, 1])),
+                fillcolor=fillcolor),
+            # "rotate": lambda img, magnitude: rotate_with_fill(img, magnitude),
+            "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
+            "color": lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])),
+            "posterize": lambda img, magnitude: ImageOps.posterize(img, magnitude),
+            "solarize": lambda img, magnitude: ImageOps.solarize(img, magnitude),
+            "contrast": lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
+                1 + magnitude * random.choice([-1, 1])),
+            "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
+                1 + magnitude * random.choice([-1, 1])),
+            "brightness": lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
+                1 + magnitude * random.choice([-1, 1])),
+            "autocontrast": lambda img, magnitude: ImageOps.autocontrast(img),
+            "equalize": lambda img, magnitude: ImageOps.equalize(img),
+            "invert": lambda img, magnitude: ImageOps.invert(img)
         }
 
         self.p1 = p1
@@ -291,7 +265,7 @@ class SubPolicy(object):
 
 
 class SubBackwardPolicy(object):
-    """Subpolicy with a backward relationship to revert the action (useful for segmentation).
+    """Subpolicy with a backward relationship to revert the action.
 
     Two operations must be specified:
     - an operation applied to the image of the transformed branch
@@ -299,7 +273,6 @@ class SubBackwardPolicy(object):
 
     def __init__(self, p1, operation1, magnitude_idx1, p2, operation2, magnitude_idx2):
         ranges = {
-            "rotate90": np.array([0, 1, 2, 3]),
             "color": np.linspace(0.0, 0.9, 10),
             "posterize": np.round(np.linspace(8, 4, 10), 0).astype(np.int),
             "solarize": np.linspace(256, 0, 10),
@@ -312,45 +285,25 @@ class SubBackwardPolicy(object):
         }
 
         func = {
-            "rotate90": [lambda img, magnitude: np.rot90(img, k=magnitude, axes=(0, 1)),
-                         lambda mask, magnitude: torch.rot90(mask, k=magnitude, dims=(1, 2))],
-            # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
-            "color": [lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])), None],
-            "posterize": [lambda img, magnitude: ImageOps.posterize(img, magnitude), None],
-            "solarize": [lambda img, magnitude: ImageOps.solarize(img, magnitude), None],
-            "contrast": [lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
-                1 + magnitude * random.choice([-1, 1])), None],
-            "sharpness": [lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
-                1 + magnitude * random.choice([-1, 1])), None],
-            "brightness": [lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
-                1 + magnitude * random.choice([-1, 1])), None],
-            "autocontrast": [lambda img, magnitude: ImageOps.autocontrast(img), None],
-            "equalize": [lambda img, magnitude: ImageOps.equalize(img), None],
-            "invert": [lambda img, magnitude: ImageOps.invert(img), None],
+            "color": lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])),
+            "posterize": lambda img, magnitude: ImageOps.posterize(img, magnitude),
+            "solarize": lambda img, magnitude: ImageOps.solarize(img, magnitude),
+            "contrast": lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
+                1 + magnitude * random.choice([-1, 1])),
+            "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
+                1 + magnitude * random.choice([-1, 1])),
+            "brightness": lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
+                1 + magnitude * random.choice([-1, 1])),
+            "autocontrast": lambda img, magnitude: ImageOps.autocontrast(img),
+            "equalize": lambda img, magnitude: ImageOps.equalize(img),
+            "invert": lambda img, magnitude: ImageOps.invert(img),
         }
 
-        # func = {
-        #     "rotate90": [lambda img, magnitude: np.rot90(img, k=magnitude, axes=(0, 1)),
-        #                  lambda mask, magnitude: torch.rot90(mask, k=magnitude, dims=(1, 2))],
-        #     # "rotate": lambda img, magnitude: img.rotate(magnitude * random.choice([-1, 1])),
-        #     "color": [operations['Color'], None],
-        #     "posterize": [operations['Posterize'], None],
-        #     "solarize": [operations['Solarize'], None],
-        #     "contrast": [operations['Contrast'], None],
-        #     "sharpness": [operations['Sharpness'], None],
-        #     "brightness": [operations['Brightness'], None],
-        #     "autocontrast": [operations['AutoContrast'], None],
-        #     "equalize": [operations['Equalize'], None],
-        #     "invert": [operations['Invert'], None],
-        # }
-
         self.p1 = p1
-        self.operation1 = func[operation1][0]
-        self.backward_operation1 = func[operation1][1]
+        self.operation1 = func[operation1]
         self.magnitude1 = ranges[operation1][magnitude_idx1]
         self.p2 = p2
-        self.operation2 = func[operation2][0]
-        self.backward_operation2 = func[operation2][1]
+        self.operation2 = func[operation2]
         self.magnitude2 = ranges[operation2][magnitude_idx2]
 
         self.applied_backward = []
@@ -358,8 +311,6 @@ class SubBackwardPolicy(object):
     def __call__(self, img):
         if random.random() < self.p1:
             img = self.operation1(img, self.magnitude1)
-            self.applied_backward.append(self.backward_operation1)
         if random.random() < self.p2:
             img = self.operation2(img, self.magnitude2)
-            self.applied_backward.append(self.backward_operation2)
         return img
