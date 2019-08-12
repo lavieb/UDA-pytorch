@@ -50,14 +50,19 @@ def setup_logger(logger, level=logging.INFO):
 def mlflow_batch_metrics_logging(engine, tag, trainer):
     step = trainer.state.iteration
     for name, value in engine.state.metrics.items():
-        mlflow.log_metric("{} {}".format(tag, name), value, step=step)
+        try:
+            mlflow.log_metric("{} {}".format(tag, name), value, step=step)
+        except BaseException as e:
+            pass
 
 
 def mlflow_val_metrics_logging(engine, tag, trainer, metrics):
     step = trainer.state.epoch
-    for name in metrics.keys():
-        value = engine.state.metrics[name]
-        mlflow.log_metric("{} {}".format(tag, name), value, step=step)
+    for name, value in engine.state.metrics.items():
+        try:
+            mlflow.log_metric("{} {}".format(tag, name), value, step=step)
+        except BaseException as e:
+            pass
 
 
 def log_tsa(engine, tsa):
