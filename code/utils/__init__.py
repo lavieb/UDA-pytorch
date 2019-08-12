@@ -105,8 +105,8 @@ def get_uda_train_test_loaders(train_set,
 
     original_transform = train_transform_fn
     augmentation_transform = unsup_transform_fn
-    train1_unsup_ds = TransformedDataset(train1_set, UDATransform(original_transform, augmentation_transform))
-    train2_unsup_ds = TransformedDataset(train2_set, UDATransform(original_transform, augmentation_transform))
+    train1_unsup_ds = TransformedDatasetUDA(train1_set, UDATransform(original_transform, augmentation_transform))
+    train2_unsup_ds = TransformedDatasetUDA(train2_set, UDATransform(original_transform, augmentation_transform))
 
     if unlabelled_batch_size is None:
         unlabelled_batch_size = batch_size
@@ -134,7 +134,24 @@ class TransformedDataset(Dataset):
     def __getitem__(self, index):
         dp = self.ds[index]
         dp = self.transform_fn(dp)
-        return dp[0], dp[1]
+        return dp['image'], dp['mask']
+
+
+class TransformedDatasetUDA(Dataset):
+
+    def __init__(self, ds, transform_fn):
+        assert isinstance(ds, Dataset)
+        assert callable(transform_fn)
+        self.ds = ds
+        self.transform_fn = transform_fn
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, index):
+        dp = self.ds[index]
+        dp = self.transform_fn(dp)
+        return dp
 
 
 class UDATransform:
