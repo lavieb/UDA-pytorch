@@ -14,7 +14,9 @@ from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutput
 from ignite.contrib.handlers.polyaxon_logger import PolyaxonLogger, OutputHandler as plxOutputHandler
 from ignite.handlers import ModelCheckpoint
 from ignite.engine import Events, Engine
-from ignite.metrics import Accuracy, RunningAverage
+from ignite.metrics import RunningAverage, ConfusionMatrix
+from ignite.metrics import IoU, mIoU
+from ignite.metrics.confusion_matrix import cmAccuracy, cmPrecision, cmRecall
 
 from polyaxon_client.tracking import get_outputs_path, get_outputs_refs_paths
 from polyaxon_client.exceptions import PolyaxonClientException
@@ -63,6 +65,7 @@ def run(train_config, logger, **kwargs):
         load_optimizer_file = os.path.join(output_experiment_path, save_model_dir, load_optimizer_file)
 
     num_epochs = getattr(train_config, 'num_epochs')
+    num_classes = getattr(train_config, 'num_classes')
     device = getattr(train_config, 'device', 'cpu')
 
     # Set magical acceleration
@@ -94,6 +97,10 @@ def run(train_config, logger, **kwargs):
 
     criterion = getattr(train_config, 'criterion').to(device)
     consistency_criterion = getattr(train_config, 'consistency_criterion').to(device)
+
+    cm_metric = getattr(train_config,
+                        'cm_metric',
+                        ConfusionMatrix(num_classes=num_classes, output_transform=lambda x: (x['y_pred'], x['y'])))
 
     # AMP initialization for half precision
     if use_fp_16:
@@ -204,10 +211,11 @@ def run(train_config, logger, **kwargs):
                                                        metric_names=metric_names),
                           event_name=Events.ITERATION_STARTED)
 
-    metrics = {
-        "accuracy": Accuracy(),
-    }
-
+    metrics = {'mAcc': cmAccuracy(cm_metric).mean(),
+               'mPr': cmPrecision(cm_metric).mean(),
+               'mRe': cmRecall(cm_metric).mean(),
+               "IoU": IoU(cm_metric),
+               "mIoU": mIoU(cm_metric)}
     inference_update_fn = partial(inference_update_function,
                                   model=model,
                                   cfg=cfg,

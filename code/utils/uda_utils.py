@@ -127,7 +127,7 @@ def inference_standard(im,
                        model,
                        output_transform_model=lambda x: x,
                        **kwargs):
-    """Infer folllowing the TTA method
+    """Infer following the standard method
 
     Args:
         im: batch image to infer
