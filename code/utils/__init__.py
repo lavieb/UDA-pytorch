@@ -91,14 +91,16 @@ def get_uda_train_test_loaders(train_set,
                                test_workers,
                                unsup_set=None,
                                unlabelled_batch_size=None,
-                               pin_memory=True):
+                               pin_memory=True,
+                               shuffle=False):
 
     if unsup_set is None:
         train1_set, train2_set = stratified_train_labelled_unlabelled_split(train_set,
                                                                             num_labelled_samples=num_labelled_samples,
                                                                             num_classes=num_classes, seed=12)
     else:
-        train1_set, train2_set = (train_set, unsup_set)
+        train1_set = Subset(train_set, np.random.permutation(len(train_set))[:num_labelled_samples])
+        train2_set = unsup_set
 
     train1_sup_ds = TransformedDataset(train1_set, train_transform_fn)
     test_ds = TransformedDataset(test_set, test_transform_fn)
@@ -111,9 +113,9 @@ def get_uda_train_test_loaders(train_set,
     if unlabelled_batch_size is None:
         unlabelled_batch_size = batch_size
 
-    train1_sup_loader = DataLoader(train1_sup_ds, batch_size=batch_size, num_workers=train_workers, pin_memory=pin_memory)
-    train1_unsup_loader = DataLoader(train1_unsup_ds, batch_size=unlabelled_batch_size, num_workers=train_workers, pin_memory=pin_memory)
-    train2_unsup_loader = DataLoader(train2_unsup_ds, batch_size=unlabelled_batch_size, num_workers=train_workers, pin_memory=pin_memory)
+    train1_sup_loader = DataLoader(train1_sup_ds, batch_size=batch_size, shuffle=shuffle, num_workers=train_workers, pin_memory=pin_memory)
+    train1_unsup_loader = DataLoader(train1_unsup_ds, batch_size=unlabelled_batch_size, shuffle=shuffle, num_workers=train_workers, pin_memory=pin_memory)
+    train2_unsup_loader = DataLoader(train2_unsup_ds, batch_size=unlabelled_batch_size, shuffle=shuffle, num_workers=train_workers, pin_memory=pin_memory)
 
     test_loader = DataLoader(test_ds, batch_size=batch_size * 2, num_workers=test_workers, pin_memory=pin_memory)
 

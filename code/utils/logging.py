@@ -125,11 +125,8 @@ def write_prediction_on_image(mask, mask_predicted, im, filepath):
     assert isinstance(im, np.ndarray) and im.ndim == 3, \
         "{} and {}".format(type(im), im.shape if isinstance(im, np.ndarray) else None)
 
-    # Normalize for rendering
-    x = render_x(im)
-
     # Save the images and masks
-    im = Image.fromarray(x).convert('RGB')
+    im = Image.fromarray(render_x(im)).convert('RGB')
 
     pil_gt = Image.fromarray(mask.astype('uint8'))
     pil_gt.putpalette(vocpallete)
