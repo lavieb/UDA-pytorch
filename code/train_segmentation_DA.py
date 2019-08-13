@@ -275,7 +275,7 @@ def run(train_config, logger, **kwargs):
                 iteration = str(trainer.state.iteration)
                 epoch = str(trainer.state.epoch)
 
-                save_prediction('trainer_{}_{]'.format(iteration, epoch),
+                save_prediction('trainer_{}_{}'.format(iteration, epoch),
                                 save_prediction_dir,
                                 trainer_output['x'],
                                 trainer_output['y_pred'])
