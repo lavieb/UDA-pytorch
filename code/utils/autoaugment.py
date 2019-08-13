@@ -70,7 +70,7 @@ class AbstractBackwardPolicy(BasicTransform):
 
         img = Image.fromarray((img * 255 / 2 + 128).astype(np.uint8))
         img = policy(img)
-        img = (np.array(img) - 128) / 255
+        img = (np.array(img) - 128) / 255 * 2
 
         return img
 
