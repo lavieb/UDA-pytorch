@@ -16,8 +16,7 @@ def train_transform_fn(dp):
 
     dp = albu_train_transform_fn(dp)
 
-    return {'image': dp['image'],
-            'mask': dp['mask']}
+    return dp['image'], dp['mask']
 
 
 def test_transform_fn(dp):
@@ -26,21 +25,17 @@ def test_transform_fn(dp):
 
     dp = albu_test_transform_fn(dp)
 
-    return {'image': dp['image'],
-            'mask': dp['mask']}
+    return dp['image'], dp['mask']
 
 
 def unsup_transform_fn(dp):
-    autotransf = ImageNetBackwardPolicy()
-
-    albu_unsup_transform = albu.Compose([autotransf,
+    albu_unsup_transform = albu.Compose([ImageNetBackwardPolicy(),
                                          ToTensor()])
     albu_unsup_transform_fn = lambda x: albu_unsup_transform(**x)
 
     dp = albu_unsup_transform_fn(dp)
 
-    return {'image': dp['image'],
-            'autotransf': autotransf}
+    return dp['image'], None
 
 
 debug = True

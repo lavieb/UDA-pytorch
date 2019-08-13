@@ -134,7 +134,7 @@ class TransformedDataset(Dataset):
     def __getitem__(self, index):
         dp = self.ds[index]
         dp = self.transform_fn(dp)
-        return dp['image'], dp['mask']
+        return dp[0], dp[1]
 
 
 class UDATransform:
@@ -152,7 +152,7 @@ class UDATransform:
         tdp1 = self.original_transform(dp)
         tdp2 = self.augmentation_transform(aug_dp)
 
-        return tdp1['image'], tdp2['image']
+        return tdp1[0], tdp2[0]
 
 
 def stratified_train_labelled_unlabelled_split(ds, num_labelled_samples, num_classes, seed=None):
