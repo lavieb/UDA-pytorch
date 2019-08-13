@@ -134,7 +134,7 @@ class TransformedDataset(Dataset):
     def __getitem__(self, index):
         dp = self.ds[index]
         dp = self.transform_fn(dp)
-        return dp[0], dp[1]
+        return dp['image'], dp['mask']
 
 
 class UDATransform:
