@@ -117,7 +117,7 @@ def get_uda_train_test_loaders(train_set,
     train1_unsup_loader = DataLoader(train1_unsup_ds, batch_size=unlabelled_batch_size, shuffle=shuffle, num_workers=train_workers, pin_memory=pin_memory)
     train2_unsup_loader = DataLoader(train2_unsup_ds, batch_size=unlabelled_batch_size, shuffle=shuffle, num_workers=train_workers, pin_memory=pin_memory)
 
-    test_loader = DataLoader(test_ds, batch_size=batch_size * 2, num_workers=test_workers, pin_memory=pin_memory)
+    test_loader = DataLoader(test_ds, batch_size=batch_size * 2, shuffle=True, num_workers=test_workers, pin_memory=pin_memory)
 
     return train1_sup_loader, train1_unsup_loader, train2_unsup_loader, test_loader
 
