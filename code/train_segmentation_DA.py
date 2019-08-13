@@ -14,7 +14,7 @@ from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutput
 from ignite.contrib.handlers.polyaxon_logger import PolyaxonLogger, OutputHandler as plxOutputHandler
 from ignite.handlers import ModelCheckpoint
 from ignite.engine import Events, Engine
-from ignite.metrics import RunningAverage, ConfusionMatrix
+from ignite.metrics import RunningAverage, ConfusionMatrix, Loss
 from ignite.metrics import IoU, mIoU
 from ignite.metrics.confusion_matrix import cmAccuracy, cmPrecision, cmRecall
 
@@ -211,7 +211,8 @@ def run(train_config, logger, **kwargs):
                                                        metric_names=metric_names),
                           event_name=Events.ITERATION_STARTED)
 
-    metrics = {'mAcc': cmAccuracy(cm_metric).mean(),
+    metrics = {'loss': Loss(criterion, output_transform=lambda x: (x['y_pred'], x['y'])),
+               'mAcc': cmAccuracy(cm_metric).mean(),
                'mPr': cmPrecision(cm_metric).mean(),
                'mRe': cmRecall(cm_metric).mean(),
                "IoU": IoU(cm_metric),
