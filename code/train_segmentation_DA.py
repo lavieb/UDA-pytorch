@@ -241,34 +241,34 @@ def run(train_config, logger, **kwargs):
                                                                        'optimizer': optimizer})
 
     def run_validation(engine, validation_interval):
-        if (engine.state.epoch - 1) % val_interval == 0:
+        if (engine.state.epoch - 1) % validation_interval == 0:
             train_evaluator.run(train1_sup_loader)
             evaluator.run(test_loader)
 
-        if save_prediction_dir:
-            train_output = train_evaluator.state.output
-            test_output = evaluator.state.output
+            if save_prediction_dir:
+                train_output = train_evaluator.state.output
+                test_output = evaluator.state.output
 
-            iteration = str(trainer.state.iteration)
-            epoch = str(trainer.state.epoch)
+                iteration = str(trainer.state.iteration)
+                epoch = str(trainer.state.epoch)
 
-            save_prediction('train_{}_{}'.format(iteration, epoch),
-                            save_prediction_dir,
-                            train_output['x'],
-                            torch.argmax(train_output['y_pred'][0, :, :, :], dim=0),
-                            y=train_output['y'][0, :, :])
+                save_prediction('train_{}_{}'.format(iteration, epoch),
+                                save_prediction_dir,
+                                train_output['x'],
+                                torch.argmax(train_output['y_pred'][0, :, :, :], dim=0),
+                                y=train_output['y'][0, :, :])
 
-            save_prediction('test_{}_{}'.format(iteration, epoch),
-                            save_prediction_dir,
-                            test_output['x'],
-                            torch.argmax(test_output['y_pred'][0, :, :, :], dim=0),
-                            y=test_output['y'][0, :, :])
+                save_prediction('test_{}_{}'.format(iteration, epoch),
+                                save_prediction_dir,
+                                test_output['x'],
+                                torch.argmax(test_output['y_pred'][0, :, :, :], dim=0),
+                                y=test_output['y'][0, :, :])
 
     trainer.add_event_handler(Events.EPOCH_STARTED, run_validation, validation_interval=val_interval)
     trainer.add_event_handler(Events.COMPLETED, run_validation, validation_interval=1)
 
     def trainer_prediction_save(engine, prediction_interval):
-        if (engine.state.iteration - 1) % pred_interval:
+        if (engine.state.iteration - 1) % prediction_interval == 0:
 
             if save_prediction_dir:
                 trainer_output = trainer.state.output['unsup pred']
