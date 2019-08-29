@@ -4,16 +4,17 @@ from functools import partial
 import logging
 import os
 import shutil
+from enum import Enum
 
 import mlflow
 import torch
-from ignite.contrib.handlers import TensorboardLogger, ProgressBar
+from ignite.contrib.handlers import ProgressBar
 from ignite.contrib.handlers import create_lr_scheduler_with_warmup
 from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutputHandler, \
     OptimizerParamsHandler as tbOptimizerParamsHandler
 from ignite.contrib.handlers.polyaxon_logger import PolyaxonLogger, OutputHandler as plxOutputHandler
 from ignite.handlers import ModelCheckpoint
-from ignite.engine import Events, Engine
+from ignite.engine import Events, Engine, State
 from ignite.metrics import RunningAverage, ConfusionMatrix, Loss
 from ignite.metrics import IoU, mIoU
 from ignite.metrics.confusion_matrix import cmAccuracy, cmPrecision, cmRecall
@@ -22,15 +23,25 @@ from polyaxon_client.tracking import get_outputs_path, get_outputs_refs_paths
 from polyaxon_client.exceptions import PolyaxonClientException
 
 from utils.uda_utils import cycle, train_update_function, load_params, inference_update_function, inference_standard
-from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_logging, log_tsa, log_learning_rate, save_prediction, create_save_folders
+from utils.logging import mlflow_batch_metrics_logging, mlflow_val_metrics_logging, log_tsa, log_learning_rate, save_prediction, create_save_folders, setup_logger
 from utils.tsa import TrainingSignalAnnealing
+from utils.metrics import cmFbeta
+from utils.custom_ignite import TensorboardLogger
+
+
+class CustomEvents(Enum):
+    """
+    Events based on back propagation
+    """
+    ITERATION_K_COMPLETED = "iteration_k_completed"
+    ITERATION_K_STARTED = "iteration_k_started"
 
 
 def run(train_config, logger, **kwargs):
 
     logger = logging.getLogger('UDA')
     if getattr(train_config, 'debug', False):
-        logger.setLevel(logging.DEBUG)
+        setup_logger(logger, logging.DEBUG)
 
     # Set Polyaxon environment if needed
     plx_logger = None
@@ -61,8 +72,8 @@ def run(train_config, logger, **kwargs):
     create_save_folders(save_dir, saves_dict)
 
     if output_experiment_path is not None:
-        load_model_file = os.path.join(output_experiment_path, save_model_dir, load_model_file)
-        load_optimizer_file = os.path.join(output_experiment_path, save_model_dir, load_optimizer_file)
+        load_model_file = os.path.join(output_experiment_path, save_model_dir, load_model_file) if load_model_file else None
+        load_optimizer_file = os.path.join(output_experiment_path, save_model_dir, load_optimizer_file) if load_optimizer_file else None
 
     num_epochs = getattr(train_config, 'num_epochs')
     num_classes = getattr(train_config, 'num_classes')
@@ -76,9 +87,6 @@ def run(train_config, logger, **kwargs):
 
     # Set half precision if required
     use_fp_16 = getattr(train_config, 'use_fp_16', False)
-    if use_fp_16:
-        assert 'cuda' in device
-        assert torch.backends.cudnn.enabled, "NVIDIA/Apex:Amp requires cudnn backend to be enabled."
 
     train1_sup_loader = getattr(train_config, 'train1_sup_loader')
     train1_unsup_loader = getattr(train_config, 'train1_unsup_loader')
@@ -166,7 +174,14 @@ def run(train_config, logger, **kwargs):
                              train1_sup_loader_iter=train1_sup_loader_iter,
                              train1_unsup_loader_iter=train1_unsup_loader_iter,
                              train2_unsup_loader_iter=train2_unsup_loader_iter,
-                             output_transform_model=output_transform_model))
+                             output_transform_model=output_transform_model,
+                             use_fp_16=use_fp_16))
+
+    # Register events
+    for e in CustomEvents:
+        State.event_to_attr[e] = 'iteration'
+
+    trainer.register_events(*CustomEvents)
 
     if with_tsa:
         trainer.add_event_handler(Events.ITERATION_COMPLETED, log_tsa, tsa)
@@ -199,24 +214,29 @@ def run(train_config, logger, **kwargs):
     tb_logger.attach(trainer,
                      log_handler=tbOutputHandler(tag="train",
                                                  metric_names=metric_names),
-                     event_name=Events.ITERATION_COMPLETED)
+                     event_name=CustomEvents.ITERATION_K_COMPLETED)
     tb_logger.attach(trainer,
                      log_handler=tbOptimizerParamsHandler(optimizer, param_name="lr"),
-                     event_name=Events.ITERATION_STARTED)
+                     event_name=CustomEvents.ITERATION_K_STARTED)
 
     # Handlers for Polyaxon logging
     if plx_logger is not None:
         plx_logger.attach(trainer,
                           log_handler=plxOutputHandler(tag="train",
                                                        metric_names=metric_names),
-                          event_name=Events.ITERATION_STARTED)
+                          event_name=CustomEvents.ITERATION_K_COMPLETED)
 
     metrics = {'loss': Loss(criterion, output_transform=lambda x: (x['y_pred'], x['y'])),
                'mAcc': cmAccuracy(cm_metric).mean(),
                'mPr': cmPrecision(cm_metric).mean(),
                'mRe': cmRecall(cm_metric).mean(),
-               "IoU": IoU(cm_metric),
-               "mIoU": mIoU(cm_metric)}
+               'mIoU': mIoU(cm_metric),
+               'mF1': cmFbeta(cm_metric, 1).mean()}
+    iou = IoU(cm_metric)
+    for i in range(num_classes):
+        key_name = 'IoU_{}'.format(str(i))
+        metrics[key_name] = iou[i]
+
     inference_update_fn = partial(inference_update_function,
                                   model=model,
                                   cfg=cfg,
@@ -239,6 +259,14 @@ def run(train_config, logger, **kwargs):
                                      create_dir=True)
         trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint, {'mymodel': model,
                                                                        'optimizer': optimizer})
+
+    def trigger_k_iteration_started(engine, k):
+        if engine.state.iteration % k == 0:
+            engine.fire_event(CustomEvents.ITERATION_K_STARTED)
+
+    def trigger_k_iteration_completed(engine, k):
+        if engine.state.iteration % k == 0:
+            engine.fire_event(CustomEvents.ITERATION_K_COMPLETED)
 
     def run_validation(engine, validation_interval):
         if (engine.state.epoch - 1) % validation_interval == 0:
@@ -264,6 +292,9 @@ def run(train_config, logger, **kwargs):
                                 torch.argmax(test_output['y_pred'][0, :, :, :], dim=0),
                                 y=test_output['y'][0, :, :])
 
+    trainer.add_event_handler(Events.ITERATION_STARTED, trigger_k_iteration_started, k=10)
+    trainer.add_event_handler(Events.ITERATION_COMPLETED, trigger_k_iteration_completed, k=10)
+
     trainer.add_event_handler(Events.EPOCH_STARTED, run_validation, validation_interval=val_interval)
     trainer.add_event_handler(Events.COMPLETED, run_validation, validation_interval=1)
 
@@ -287,29 +318,25 @@ def run(train_config, logger, **kwargs):
 
     tb_logger.attach(train_evaluator,
                      log_handler=tbOutputHandler(tag="train",
-                                                 metric_names=list(metrics.keys()),
-                                                 another_engine=trainer),
-                     event_name=Events.COMPLETED)
+                                                 metric_names=list(metrics.keys())),
+                     event_name=Events.EPOCH_COMPLETED)
 
     tb_logger.attach(evaluator,
                      log_handler=tbOutputHandler(tag="test",
-                                                 metric_names=list(metrics.keys()),
-                                                 another_engine=trainer),
-                     event_name=Events.COMPLETED)
+                                                 metric_names=list(metrics.keys())),
+                     event_name=Events.EPOCH_COMPLETED)
 
     # Handlers for Polyaxon logging
     if plx_logger is not None:
         plx_logger.attach(train_evaluator,
                           log_handler=plxOutputHandler(tag="train",
-                                                       metric_names=list(metrics.keys()),
-                                                       another_engine=trainer),
-                          event_name=Events.COMPLETED)
+                                                       metric_names=list(metrics.keys())),
+                          event_name=Events.EPOCH_COMPLETED)
 
         plx_logger.attach(evaluator,
                           log_handler=plxOutputHandler(tag="test",
-                                                       metric_names=list(metrics.keys()),
-                                                       another_engine=trainer),
-                          event_name=Events.COMPLETED)
+                                                       metric_names=list(metrics.keys())),
+                          event_name=Events.EPOCH_COMPLETED)
 
     trainer.add_event_handler(Events.ITERATION_COMPLETED, mlflow_batch_metrics_logging, "train", trainer)
     train_evaluator.add_event_handler(Events.COMPLETED, mlflow_val_metrics_logging, "train", trainer)
