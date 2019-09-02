@@ -8,6 +8,7 @@ from enum import Enum
 
 import mlflow
 import torch
+from torch import nn
 from ignite.contrib.handlers import ProgressBar
 from ignite.contrib.handlers import create_lr_scheduler_with_warmup
 from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutputHandler, \
@@ -125,6 +126,12 @@ def run(train_config, logger, **kwargs):
 
     # Load checkpoint
     load_params(model, optimizer=optimizer, model_file=load_model_file, optimizer_file=load_optimizer_file, device_name=device)
+
+    # Add batch norm
+    is_bn = getattr(train_config, 'is_bn', False)
+    if is_bn:
+        batch_norm = nn.BatchNorm2d(3).to(device).half()
+        model = nn.Sequential(batch_norm, model)
 
     # Copy the config file
     shutil.copy2(os.path.abspath(train_config.__file__), os.path.join(save_config_dir, 'checkpoint_module.py'))
@@ -292,6 +299,9 @@ def run(train_config, logger, **kwargs):
                                 torch.argmax(test_output['y_pred'][0, :, :, :], dim=0),
                                 y=test_output['y'][0, :, :])
 
+            train_evaluator.state.output = None
+            evaluator.state.output = None
+
     trainer.add_event_handler(Events.ITERATION_STARTED, trigger_k_iteration_started, k=10)
     trainer.add_event_handler(Events.ITERATION_COMPLETED, trigger_k_iteration_completed, k=10)
 
@@ -313,6 +323,8 @@ def run(train_config, logger, **kwargs):
                                 trainer_output['y_pred'])
 
                 logger.debug('Saved trainer prediction for iteration {}'.format(str(engine.state.iteration)))
+
+            trainer.state.output = None
 
     trainer.add_event_handler(Events.ITERATION_COMPLETED, trainer_prediction_save, prediction_interval=pred_interval)
 
