@@ -136,6 +136,8 @@ class ToTensor(BasicTransform):
         return torch.from_numpy(img.transpose(2, 0, 1))
 
     def apply_to_mask(self, mask, **params):
+        if mask is None:
+            return mask
         return torch.from_numpy(mask)
 
 
