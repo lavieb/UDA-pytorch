@@ -1,10 +1,6 @@
 import numpy as np
 
 from torch.utils.data import Subset, Dataset, DataLoader
-import torch
-
-from torchvision import models
-from torchvision.transforms import Compose, ToTensor, Normalize, Pad, RandomCrop, RandomHorizontalFlip
 
 from utils import autoaugment
 from utils.transforms import RandomErasing, ToTensor

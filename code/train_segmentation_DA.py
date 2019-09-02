@@ -20,7 +20,7 @@ from ignite.metrics import RunningAverage, ConfusionMatrix, Loss
 from ignite.metrics import IoU, mIoU
 from ignite.metrics.confusion_matrix import cmAccuracy, cmPrecision, cmRecall
 
-from polyaxon_client.tracking import get_outputs_path, get_outputs_refs_paths
+from polyaxon_client.tracking import get_outputs_path, get_outputs_refs_paths, Experiment
 from polyaxon_client.exceptions import PolyaxonClientException
 
 from utils.uda_utils import cycle, train_update_function, load_params, inference_update_function, inference_standard
@@ -73,8 +73,9 @@ def run(train_config, logger, **kwargs):
     create_save_folders(save_dir, saves_dict)
 
     if output_experiment_path is not None:
-        load_model_file = os.path.join(output_experiment_path, save_model_dir, load_model_file) if load_model_file else None
-        load_optimizer_file = os.path.join(output_experiment_path, save_model_dir, load_optimizer_file) if load_optimizer_file else None
+        model_dir = saves_dict.get('model_dir', '')
+        load_model_file = os.path.join(output_experiment_path, model_dir, load_model_file) if load_model_file else None
+        load_optimizer_file = os.path.join(output_experiment_path, model_dir, load_optimizer_file) if load_optimizer_file else None
 
     num_epochs = getattr(train_config, 'num_epochs')
     num_classes = getattr(train_config, 'num_classes')
