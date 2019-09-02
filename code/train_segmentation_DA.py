@@ -159,6 +159,10 @@ def run(train_config, logger, **kwargs):
     train1_unsup_loader_iter = cycle(train1_unsup_loader)
     train2_unsup_loader_iter = cycle(train2_unsup_loader)
 
+    # Reduce on plateau
+    reduce_on_plateau = getattr(train_config, 'reduce_on_plateau', None)
+
+    # Output transform model
     output_transform_model = getattr(train_config, 'output_transform_model', lambda x: x)
 
     inference_fn = getattr(train_config, 'inference_fn', inference_standard)
@@ -280,7 +284,7 @@ def run(train_config, logger, **kwargs):
             engine.fire_event(CustomEvents.ITERATION_K_COMPLETED)
 
     def run_validation(engine, validation_interval):
-        if (engine.state.epoch - 1) % validation_interval == 0:
+        if (trainer.state.epoch - 1) % validation_interval == 0:
             train_evaluator.run(train1_sup_loader)
             evaluator.run(test_loader)
 
@@ -305,6 +309,9 @@ def run(train_config, logger, **kwargs):
 
             train_evaluator.state.output = None
             evaluator.state.output = None
+
+            if reduce_on_plateau is not None:
+                reduce_on_plateau.step(evaluator.state.metrics['mIoU'])
 
     trainer.add_event_handler(Events.ITERATION_STARTED, trigger_k_iteration_started, k=10)
     trainer.add_event_handler(Events.ITERATION_COMPLETED, trigger_k_iteration_completed, k=10)
