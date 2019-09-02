@@ -134,6 +134,7 @@ def run(train_config, logger, **kwargs):
         batch_norm = nn.BatchNorm2d(3).to(device)
         if use_fp_16:
             batch_norm = amp.initialize(batch_norm)
+        batch_norm.reset_parameters()
         model = nn.Sequential(batch_norm, model)
 
     # Copy the config file

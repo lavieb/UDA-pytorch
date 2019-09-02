@@ -47,8 +47,8 @@ def get_uda_train_test_loaders(train_set,
 
     original_transform = unsup_transform_bf_fn
     augmentation_transform = unsup_transform_af_fn
-    train1_unsup_ds = TransformedDataset(train1_set, UDATransform(original_transform, augmentation_transform, unsup_transform_pl_fn))
-    train2_unsup_ds = TransformedDataset(train2_set, UDATransform(original_transform, augmentation_transform, unsup_transform_pl_fn))
+    train1_unsup_ds = TransformedDataset(train1_set, UDATransform(original_transform, unsup_transform_pl_fn, augmentation_transform))
+    train2_unsup_ds = TransformedDataset(train2_set, UDATransform(original_transform, unsup_transform_pl_fn, augmentation_transform))
 
     if unlabelled_batch_size is None:
         unlabelled_batch_size = batch_size

@@ -59,10 +59,10 @@ def compute_unsupervised_loss(engine,
 
     # Unsupervised part
     unsup_orig_y_pred = output_transform_model(model(unsup_x)).detach()
-    unsup_orig_y_probas = torch.log_softmax(unsup_orig_y_pred, dim=-1)
+    unsup_orig_y_probas = torch.log_softmax(unsup_orig_y_pred, dim=1)
 
     unsup_aug_y_pred = output_transform_model(model(unsup_aug_x))
-    unsup_aug_y_probas = torch.log_softmax(unsup_aug_y_pred, dim=-1)
+    unsup_aug_y_probas = torch.log_softmax(unsup_aug_y_pred, dim=1)
 
     consistency_loss = cfg['consistency_criterion'](unsup_aug_y_probas, unsup_orig_y_probas)
 
