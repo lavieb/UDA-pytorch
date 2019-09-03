@@ -145,7 +145,7 @@ def run(train_config, logger, **kwargs):
     mlflow.log_param("num train steps", num_train_steps)
 
     lr = getattr(train_config, 'learning_rate')
-    num_warmup_steps = getattr(train_config, 'num_warmup_steps')
+    num_warmup_steps = getattr(train_config, 'num_warmup_steps', 0)
 
     lr_scheduler = getattr(train_config, 'lr_scheduler')
 
