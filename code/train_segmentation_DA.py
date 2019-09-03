@@ -147,7 +147,7 @@ def run(train_config, logger, **kwargs):
     lr = getattr(train_config, 'learning_rate')
     num_warmup_steps = getattr(train_config, 'num_warmup_steps', 0)
 
-    lr_scheduler = getattr(train_config, 'lr_scheduler')
+    lr_scheduler = getattr(train_config, 'lr_scheduler', None)
 
     if num_warmup_steps > 0:
         lr_scheduler = create_lr_scheduler_with_warmup(lr_scheduler,
@@ -201,10 +201,11 @@ def run(train_config, logger, **kwargs):
     if with_tsa:
         trainer.add_event_handler(Events.ITERATION_COMPLETED, log_tsa, tsa)
 
-    if not hasattr(lr_scheduler, "step"):
-        trainer.add_event_handler(Events.ITERATION_STARTED, lr_scheduler)
-    else:
-        trainer.add_event_handler(Events.ITERATION_STARTED, lambda engine: lr_scheduler.step())
+    if lr_scheduler is not None:
+        if not hasattr(lr_scheduler, "step"):
+            trainer.add_event_handler(Events.ITERATION_STARTED, lr_scheduler)
+        else:
+            trainer.add_event_handler(Events.ITERATION_STARTED, lambda engine: lr_scheduler.step())
 
     trainer.add_event_handler(Events.ITERATION_COMPLETED, log_learning_rate, optimizer)
 
