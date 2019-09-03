@@ -5,6 +5,7 @@ from PIL import Image, ImageEnhance, ImageOps
 from albumentations import BasicTransform
 import numpy as np
 import random
+import cv2
 
 from PIL import Image
 
@@ -68,7 +69,7 @@ class AbstractBackwardPolicy(BasicTransform):
         policy_idx = random.randint(0, len(self.policies) - 1)
         policy = self.policies[policy_idx]
 
-        img = Image.fromarray((img * 255 / 2 + 128).astype(np.uint8))
+        img = Image.fromarray(img * 255 / 2 + 128)
         img = policy(img)
         img = (np.array(img) - 128) / 255 * 2
 
@@ -175,10 +176,10 @@ class ImageNetBackwardPolicy(AbstractBackwardPolicy):
 
         policies = [
             # SubBackwardPolicy(0.4, "posterize", 8, 0.6, "rotate90", 9),
-            SubBackwardPolicy(0.6, "solarize", 5, 0.6, "autocontrast", 5),
+            # SubBackwardPolicy(0.6, "solarize", 5, 0.6, "autocontrast", 5),
             SubBackwardPolicy(0.8, "equalize", 8, 0.6, "equalize", 3),
-            SubBackwardPolicy(0.6, "posterize", 7, 0.6, "posterize", 6),
-            SubBackwardPolicy(0.4, "equalize", 7, 0.2, "solarize", 4),
+            # SubBackwardPolicy(0.6, "posterize", 7, 0.6, "posterize", 6),
+            # SubBackwardPolicy(0.4, "equalize", 7, 0.2, "solarize", 4),
 
             # SubBackwardPolicy(0.4, "equalize", 4, 0.8, "rotate90", 8),
             SubBackwardPolicy(0.6, "solarize", 3, 0.6, "equalize", 7),
@@ -274,29 +275,35 @@ class SubBackwardPolicy(object):
     def __init__(self, p1, operation1, magnitude_idx1, p2, operation2, magnitude_idx2):
         ranges = {
             "color": np.linspace(0.0, 0.9, 10),
-            "posterize": np.round(np.linspace(8, 4, 10), 0).astype(np.int),
-            "solarize": np.linspace(256, 0, 10),
+            # "posterize": np.round(np.linspace(8, 4, 10), 0).astype(np.int),
+            # "solarize": np.linspace(256, 0, 10),
             "contrast": np.linspace(0.0, 0.9, 10),
-            "sharpness": np.linspace(0.0, 0.9, 10),
+            # "sharpness": np.linspace(0.0, 0.9, 10),
             "brightness": np.linspace(0.0, 0.9, 10),
             "autocontrast": [0] * 10,
             "equalize": [0] * 10,
-            "invert": [0] * 10
+            # "invert": [0] * 10
         }
 
         func = {
             "color": lambda img, magnitude: ImageEnhance.Color(img).enhance(1 + magnitude * random.choice([-1, 1])),
-            "posterize": lambda img, magnitude: ImageOps.posterize(img, magnitude),
-            "solarize": lambda img, magnitude: ImageOps.solarize(img, magnitude),
+            # "posterize": lambda img, magnitude: ImageOps.posterize(img, magnitude),
+            # "solarize": lambda img, magnitude: ImageOps.solarize(img, magnitude),
             "contrast": lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
                 1 + magnitude * random.choice([-1, 1])),
-            "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
-                1 + magnitude * random.choice([-1, 1])),
+            # "contrast": lambda img, magnitude: cv2.convertScaleAbs(img,
+            #                                                        alpha=1 + magnitude * random.choice([-1, 1]),
+            #                                                        beta=0),
+            # "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
+            #     1 + magnitude * random.choice([-1, 1])),
             "brightness": lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
                 1 + magnitude * random.choice([-1, 1])),
+            # "brightness": lambda img, magnitude: cv2.convertScaleAbs(img,
+            #                                                          alpha=1,
+            #                                                          beta=1 + magnitude * random.choice([-1, 1])),
             "autocontrast": lambda img, magnitude: ImageOps.autocontrast(img),
             "equalize": lambda img, magnitude: ImageOps.equalize(img),
-            "invert": lambda img, magnitude: ImageOps.invert(img),
+            # "invert": lambda img, magnitude: ImageOps.invert(img),
         }
 
         self.p1 = p1
