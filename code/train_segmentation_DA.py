@@ -148,6 +148,8 @@ def run(train_config, logger, **kwargs):
     num_warmup_steps = getattr(train_config, 'num_warmup_steps', 0)
 
     lr_scheduler = getattr(train_config, 'lr_scheduler', None)
+    if lr_scheduler is not None:
+        lr_scheduler = lr_scheduler(optimizer)
 
     if num_warmup_steps > 0:
         lr_scheduler = create_lr_scheduler_with_warmup(lr_scheduler,
