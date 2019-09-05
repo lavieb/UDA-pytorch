@@ -105,7 +105,9 @@ def train_update_function(engine,
                                                         cfg,
                                                         output_transform_model=output_transform_model)
 
-    final_loss = train1_sup_loss + cfg['lambda'] * (train1_unsup_loss + train2_loss)
+    lam = cfg['lambda']
+    beta = cfg['beta']
+    final_loss = train1_sup_loss + lam * train1_unsup_loss + beta * train2_loss
 
     if use_fp_16:
         with amp.scale_loss(final_loss, optimizer) as scaled_loss:

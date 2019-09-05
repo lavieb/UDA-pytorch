@@ -170,6 +170,7 @@ def run(train_config, logger, **kwargs):
     inference_fn = getattr(train_config, 'inference_fn', inference_standard)
 
     lam = getattr(train_config, 'consistency_lambda')
+    beta = getattr(train_config, 'consistency_beta', lam)
 
     tsa = TrainingSignalAnnealing(num_steps=num_train_steps,
                                   min_threshold=getattr(train_config, 'TSA_proba_min'),
@@ -179,6 +180,7 @@ def run(train_config, logger, **kwargs):
 
     cfg = {'tsa': tsa,
            'lambda': lam,
+           'beta': beta,
            'with_tsa': with_tsa,
            'device': device,
            'consistency_criterion': consistency_criterion,
